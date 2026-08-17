@@ -39,8 +39,10 @@ def _fetch_cn(symbol: str) -> dict:
     script = f'''
 import os, json, warnings
 warnings.filterwarnings("ignore")
-for k in ["http_proxy","https_proxy","HTTP_PROXY","HTTPS_PROXY","all_proxy","ALL_PROXY","no_proxy"]:
-    os.environ.pop(k, None)
+for k in list(os.environ.keys()):
+    if "proxy" in k.lower(): os.environ.pop(k, None)
+os.environ["NO_PROXY"]="*"
+os.environ["no_proxy"]="*"
 import akshare as ak
 import pandas as pd
 
@@ -120,7 +122,7 @@ print(json.dumps(result, default=str))
 
     try:
         r = subprocess.run(["/opt/homebrew/bin/python3.12", "-c", script],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=60, env={k:v for k,v in os.environ.items() if "proxy" not in k.lower()})
         if r.returncode != 0:
             return _empty(f"A股基本面子进程失败: {r.stderr[:100]}")
         data = json.loads(r.stdout.strip())
@@ -185,8 +187,10 @@ def _fetch_hk(symbol: str) -> dict:
 
     script = f"""
 import json, os
-for k in ['http_proxy','https_proxy','HTTP_PROXY','HTTPS_PROXY','all_proxy']:
-    os.environ.pop(k, None)
+for k in list(os.environ.keys()):
+    if "proxy" in k.lower(): os.environ.pop(k, None)
+os.environ["NO_PROXY"]="*"
+os.environ["no_proxy"]="*"
 import akshare as ak
 fin = ak.stock_hk_financial_indicator_em(symbol='{code}')
 if fin is None or fin.empty:
@@ -206,7 +210,8 @@ else:
     try:
         result = subprocess.run(
             ["/opt/homebrew/bin/python3.12", "-c", script],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30,
+            env={k:v for k,v in os.environ.items() if "proxy" not in k.lower()}
         )
         if result.returncode != 0:
             return _empty(f"子进程失败: {result.stderr[:100]}")

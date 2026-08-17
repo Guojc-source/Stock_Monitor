@@ -10,15 +10,22 @@
   4. 期权资金 — P/C比率/异常大单/最大痛点（自动过滤无效数据）
   5. 市场背景 — 大盘/行业对标（根据GICS自动选ETF）
   6. 关键价位 — 支撑位/阻力位/斐波那契/场景推演
-  7. 🆕 历史估值 — PE分位/价格分位/PE Band
-  8. 🆕 数据验证 — 全链路质量检查 + 肉眼交叉验证日志
+  7. 历史估值 — PE分位/价格分位/PE Band
+  8. 数据验证 — 全链路质量检查 + 肉眼交叉验证日志
+  9. 🆕 行业轮动 — 11个行业ETF多周期排名 + 资金流向判断
+ 10. 🆕 大盘状态灯 — SPY/QQQ 均线交叉 + 仓位建议
+ 11. 🆕 自选股配置 — 从 watchlist.json 文件加载股票列表
 
 用法:
-    python3.12 main.py                     # 分析 config.py 中全部股票
-    python3.12 main.py -s MSFT             # 单只股票
-    python3.12 main.py -s ADBE MSFT CRM    # 多只股票
-    python3.12 main.py -s MSFT --json      # JSON 输出
+    python3.12 main.py                         # 分析 watchlist.json 中全部股票
+    python3.12 main.py -s MSFT                 # 单只股票
+    python3.12 main.py -s ADBE MSFT CRM        # 多只股票
+    python3.12 main.py -s MSFT --json          # JSON 输出
     python3.12 main.py -s MSFT --interval 60   # 每60分钟刷新
+    python3.12 main.py --sector                # 🆕 行业轮动排名
+    python3.12 main.py --market-status         # 🆕 大盘状态灯
+    python3.12 main.py --watchlist mylist.json # 🆕 指定自选股文件
+    python3.12 main.py --init-watchlist        # 🆕 生成示例 watchlist.json
 """
 
 import argparse
@@ -38,12 +45,18 @@ from fundamentals import get_fundamental_data
 from fundamentals_cn import get_fundamental_data_cn
 from sentiment import get_news_sentiment
 from options_flow import get_options_analysis
-from market_context import get_market_context
+from market_context import get_market_context, get_market_context_cn_hk
 from levels import find_support_resistance
-from valuation_history import get_historical_valuation
+from valuation_history import get_historical_valuation, get_historical_valuation_cn_hk
 from data_validator import validate_all, print_validation_log, print_cross_check_card, DataQualityReport, generate_health_banner
 from analyzer import full_analysis
-from report import generate_report, generate_summary_table, console
+from report import (
+    generate_report, generate_summary_table, console,
+    print_sector_rotation_report, print_market_status_report, print_watchlist_header,
+)
+from watchlist_loader import load_watchlist, get_watchlist_source_info, create_example_watchlist
+from sector_rotation import get_sector_rotation
+from market_status import get_market_status
 
 
 def analyze_symbol(symbol: str, verbose: bool = True, use_local: bool = False) -> dict:
@@ -78,6 +91,11 @@ def analyze_symbol(symbol: str, verbose: bool = True, use_local: bool = False) -
 
         try:
             df = fetch_stock_data_multi(symbol)
+            if market != "us" and not df.empty:
+                live_info["live_price"] = float(df["close"].iloc[-1])
+                live_info["market_state"] = "REGULAR"
+                live_price = live_info["live_price"]
+                market_state = "REGULAR"
         except Exception as e:
             raise ValueError(f"无法获取 {symbol} 的数据（{market}市场）: {e}")
 
@@ -91,17 +109,20 @@ def analyze_symbol(symbol: str, verbose: bool = True, use_local: bool = False) -
     # ===== 1.5 数据质量验证（8项检查 + 交叉验证卡）=====
     ticker_info = {}
     if not use_local:
-        try:
-            ticker_info = yf.Ticker(symbol).info or {}
-        except Exception:
-            pass
+        if market == "us":
+            try:
+                ticker_info = yf.Ticker(symbol).info or {}
+            except Exception:
+                pass
+        # CN/HK: skip yfinance ticker_info (unsupported suffixes)
 
     quality_report = validate_all(symbol, df, ticker_info, live_price)
 
     if verbose:
         print_validation_log(quality_report)
         print_cross_check_card(quality_report)
-        console.print(f"  [dim]市场状态: {market_state} | 实时价: ${live_price or 'N/A'}[/dim]")
+        _cur = "¥" if market == "cn" else ("HK$" if market == "hk" else "$")
+        console.print(f"  [dim]市场状态: {market_state} | 实时价: {_cur}{live_price or 'N/A'}[/dim]")
 
     # ===== 4. 技术面信号 =====
     tech_signals = detect_technical_signals(df)
@@ -126,25 +147,37 @@ def analyze_symbol(symbol: str, verbose: bool = True, use_local: bool = False) -
 
         # ===== 6. 新闻情绪 =====
         try:
-            sentiment_data = get_news_sentiment(symbol)
+            if market in ("cn", "hk"):
+                sentiment_data = {"signals": [{"name": "🔧 新闻情绪: A股/港股暂不支持自动新闻分析", "type": "neutral", "weight": 0}], "articles": [], "overall_sentiment": "neutral", "sentiment_score": 0, "source": "N/A"}
+            else:
+                sentiment_data = get_news_sentiment(symbol)
         except Exception as e:
             sentiment_data = {"signals": [{"name": f"新闻数据获取失败: {e}", "type": "neutral", "weight": 0}]}
 
         # ===== 7. 期权分析 =====
         try:
-            options_data = get_options_analysis(symbol)
+            if market in ("cn", "hk"):
+                options_data = {"available": False, "signals": [{"name": "🔧 期权分析: A股/港股无期权数据", "type": "neutral", "weight": 0}]}
+            else:
+                options_data = get_options_analysis(symbol)
         except Exception as e:
             options_data = {"available": False, "signals": [{"name": f"期权数据获取失败: {e}", "type": "neutral", "weight": 0}]}
 
         # ===== 8. 市场背景 =====
         try:
-            context_data = get_market_context(symbol)
+            if market in ("cn", "hk"):
+                context_data = get_market_context_cn_hk(symbol, market)
+            else:
+                context_data = get_market_context(symbol)
         except Exception as e:
             context_data = {"signals": [{"name": f"市场背景获取失败: {e}", "type": "neutral", "weight": 0}]}
 
         # ===== 10. 历史估值分位 =====
         try:
-            valuation_data = get_historical_valuation(symbol)
+            if market in ("cn", "hk"):
+                valuation_data = get_historical_valuation_cn_hk(symbol, market, df)
+            else:
+                valuation_data = get_historical_valuation(symbol)
         except Exception as e:
             valuation_data = {"signals": [{"name": f"历史估值数据获取失败: {e}", "type": "neutral", "weight": 0}]}
 
@@ -171,6 +204,7 @@ def analyze_symbol(symbol: str, verbose: bool = True, use_local: bool = False) -
     analysis["quality_report"] = quality_report
     analysis["live_info"] = live_info
     analysis["valuation_data"] = valuation_data
+    analysis["market"] = market
 
     return analysis
 
@@ -180,9 +214,14 @@ def run(symbols: list[str], verbose: bool = True, json_output: bool = False, use
     results = {}
 
     if verbose and not json_output:
-        source = "本地测试模式" if use_local else "Yahoo Finance"
+        if use_local:
+            source = "本地测试模式"
+        else:
+            markets = set(detect_market(s) for s in symbols)
+            src_map = {"us": "Yahoo Finance", "cn": "akshare(东方财富)", "hk": "akshare(新浪)"}
+            source = " / ".join(src_map.get(m, "?") for m in sorted(markets))
         console.print(f"\n[bold cyan]╔══════════════════════════════════════════════════════════╗[/bold cyan]")
-        console.print(f"[bold cyan]║[/bold cyan]   📊 美股多维分析系统  |  标的: {', '.join(symbols):<30s} [bold cyan]║[/bold cyan]")
+        console.print(f"[bold cyan]║[/bold cyan]   📊 股票多维分析系统  |  标的: {', '.join(symbols):<30s} [bold cyan]║[/bold cyan]")
         console.print(f"[bold cyan]║[/bold cyan]   数据源: {source:<44s} [bold cyan]║[/bold cyan]")
         console.print(f"[bold cyan]╚══════════════════════════════════════════════════════════╝[/bold cyan]")
 
@@ -235,18 +274,58 @@ def _to_json(results: dict) -> dict:
     return out
 
 
+def run_sector_rotation(verbose: bool = True, json_output: bool = False):
+    """运行行业轮动排名分析"""
+    result = get_sector_rotation(verbose=verbose)
+
+    if json_output:
+        # JSON 模式：简化输出
+        out = {
+            "timestamp": result["timestamp"],
+            "flow": result["flow"],
+            "flow_description": result["flow_description"],
+            "rankings_20d": result["rankings"].get("20d", []),
+            "leaders": [{"symbol": l["symbol"], "name": l["name"], "change_20d": l["change_20d"]} for l in result["leaders"]],
+            "laggards": [{"symbol": l["symbol"], "name": l["name"], "change_20d": l["change_20d"]} for l in result["laggards"]],
+            "sectors": [{k: v for k, v in s.items()} for s in result["sectors"]],
+        }
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+    else:
+        print_sector_rotation_report(result)
+
+    return result
+
+
+def run_market_status(verbose: bool = True, json_output: bool = False):
+    """运行大盘状态灯分析"""
+    status = get_market_status(verbose=verbose)
+
+    if json_output:
+        print(json.dumps(status, indent=2, ensure_ascii=False, default=str))
+    else:
+        print_market_status_report(status)
+
+    return status
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="美股多维分析系统 — 六维度覆盖",
+        description="股票多维分析系统 — 十维度覆盖",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python3.12 main.py                      # 分析全部配置股票
-  python3.12 main.py -s MSFT              # 单只深度分析
-  python3.12 main.py -s ADBE MSFT --json  # JSON 输出
-  python3.12 main.py -s MSFT --interval 60 # 每小时刷新
+  python3.12 main.py                         # 分析 watchlist.json 中全部股票
+  python3.12 main.py -s MSFT                 # 单只深度分析
+  python3.12 main.py -s ADBE MSFT --json     # JSON 输出
+  python3.12 main.py -s MSFT --interval 60   # 每小时刷新
+  python3.12 main.py --sector                # 行业轮动排名
+  python3.12 main.py --market-status         # 大盘状态灯
+  python3.12 main.py --watchlist mylist.json # 指定自选股文件
+  python3.12 main.py --init-watchlist        # 生成示例 watchlist.json
+  python3.12 main.py --all                   # 全部跑一遍（大盘+行业+个股）
         """,
     )
+    # === 个股分析 ===
     parser.add_argument("-s", "--symbols", nargs="+", help="股票代码")
     parser.add_argument("-i", "--interval", type=int, default=0, help="定时间隔（分钟）")
     parser.add_argument("--json", action="store_true", help="JSON 输出")
@@ -254,25 +333,128 @@ def main():
     parser.add_argument("--no-options", action="store_true", help="跳过期权分析")
     parser.add_argument("--local", action="store_true", help="使用本地测试数据（不联网）")
 
+    # === 🆕 自选股配置 ===
+    parser.add_argument("--watchlist", type=str, default=None,
+                        help="指定自选股配置文件路径（.json 或 .txt）")
+    parser.add_argument("--init-watchlist", action="store_true",
+                        help="生成示例 watchlist.json 文件")
+
+    # === 🆕 行业轮动 ===
+    parser.add_argument("--sector", action="store_true",
+                        help="运行行业轮动排名分析")
+
+    # === 🆕 大盘状态灯 ===
+    parser.add_argument("--market-status", action="store_true",
+                        help="运行大盘状态灯分析")
+
+    # === 🆕 全部跑一遍 ===
+    parser.add_argument("--all", action="store_true",
+                        help="全部跑一遍：大盘状态 + 行业轮动 + 个股分析")
+
     args = parser.parse_args()
-    symbols = args.symbols if args.symbols else SYMBOLS
+
+    # === 处理 --init-watchlist ===
+    if args.init_watchlist:
+        path = create_example_watchlist()
+        console.print(f"\n[green]✅ 已生成示例配置文件: {path}[/green]")
+        console.print(f"[dim]   编辑该文件添加/删除股票，然后运行 python3.12 main.py[/dim]\n")
+        return
+
+    # === 确定股票列表 ===
+    if args.symbols:
+        symbols = args.symbols
+        watchlist_file = None
+    elif args.watchlist:
+        symbols = load_watchlist(args.watchlist)
+        watchlist_file = args.watchlist
+    else:
+        symbols = load_watchlist()  # 自动搜索 watchlist.json → .txt → config.SYMBOLS
+        watchlist_file = None
+
+    # === 🆕 别名解析（-s 参数也需要，load_watchlist 内部已处理）===
+    if args.symbols:
+        from ticker_alias import resolve_symbols
+        verbose_pre = not args.json
+        symbols, _mapping = resolve_symbols(symbols, verbose=verbose_pre)
 
     verbose = not args.json
-    if args.interval > 0:
+
+    # === 显示 watchlist 来源 ===
+    if verbose and not args.sector and not args.market_status:
+        source_info = get_watchlist_source_info(watchlist_file)
+        print_watchlist_header(source_info)
+
+    # === 处理 --sector ===
+    if args.sector:
+        run_sector_rotation(verbose=verbose, json_output=args.json)
+        return
+
+    # === 处理 --market-status ===
+    if args.market_status:
+        run_market_status(verbose=verbose, json_output=args.json)
+        return
+
+    # === 处理 --all（大盘 + 行业 + 个股）===
+    if args.all:
         if verbose:
-            console.print(f"[dim]⏰ 定时模式：每 {args.interval} 分钟刷新一次，Ctrl+C 退出[/dim]")
-        while True:
-            try:
-                run(symbols, verbose=verbose, json_output=args.json, use_local=args.local)
-                if verbose:
-                    console.print(f"\n[dim]⏰ 下次刷新: {args.interval} 分钟后[/dim]")
-                time.sleep(args.interval * 60)
-            except KeyboardInterrupt:
-                if verbose:
-                    console.print("\n[yellow]👋 已退出[/yellow]")
-                break
+            console.print(f"\n[bold cyan]{'═'*60}[/bold cyan]")
+            console.print(f"[bold cyan]  🚀 全量分析模式：大盘状态 → 行业轮动 → 个股分析[/bold cyan]")
+            console.print(f"[bold cyan]{'═'*60}[/bold cyan]")
+
+        # Step 1: 大盘状态
+        if verbose:
+            console.print(f"\n[bold]━━━ Step 1/3: 大盘状态灯 ━━━[/bold]")
+        status = run_market_status(verbose=verbose, json_output=args.json)
+
+        # Step 2: 行业轮动
+        if verbose:
+            console.print(f"\n[bold]━━━ Step 2/3: 行业轮动排名 ━━━[/bold]")
+        rotation = run_sector_rotation(verbose=verbose, json_output=args.json)
+
+        # Step 3: 个股分析（排除 ETF 代码，只分析个股）
+        if verbose:
+            console.print(f"\n[bold]━━━ Step 3/3: 个股分析 ━━━[/bold]")
+
+        # 过滤掉 ETF 代码（SPY/QQQ/IWM/XLK 等），只保留个股
+        etf_codes = {
+            "SPY", "QQQ", "IWM", "DIA",
+            "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLRE", "XLU", "XLC",
+            "IGV", "SOXX", "ARKK",
+        }
+        individual_symbols = [s for s in symbols if s.upper() not in etf_codes]
+
+        if individual_symbols:
+            if args.interval > 0:
+                _run_interval(individual_symbols, args.interval, verbose, args.json, args.local)
+            else:
+                run(individual_symbols, verbose=verbose, json_output=args.json, use_local=args.local)
+        else:
+            if verbose:
+                console.print("[yellow]⚠️ watchlist 中没有个股代码，跳过个股分析[/yellow]")
+
+        return
+
+    # === 默认模式：个股分析 ===
+    if args.interval > 0:
+        _run_interval(symbols, args.interval, verbose, args.json, args.local)
     else:
         run(symbols, verbose=verbose, json_output=args.json, use_local=args.local)
+
+
+def _run_interval(symbols: list[str], interval: int, verbose: bool, json_output: bool, use_local: bool):
+    """定时刷新模式"""
+    if verbose:
+        console.print(f"[dim]⏰ 定时模式：每 {interval} 分钟刷新一次，Ctrl+C 退出[/dim]")
+    while True:
+        try:
+            run(symbols, verbose=verbose, json_output=json_output, use_local=use_local)
+            if verbose:
+                console.print(f"\n[dim]⏰ 下次刷新: {interval} 分钟后[/dim]")
+            time.sleep(interval * 60)
+        except KeyboardInterrupt:
+            if verbose:
+                console.print("\n[yellow]👋 已退出[/yellow]")
+            break
 
 
 if __name__ == "__main__":

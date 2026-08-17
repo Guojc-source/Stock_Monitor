@@ -213,3 +213,28 @@ def _generate_context_signals(benchmarks: dict, relative_strength: dict, regime:
             signals.append({"name": f"20日跑输标普 {excess}%（相对弱势）", "type": "bearish", "weight": 1})
 
     return signals
+
+
+CN_BENCHMARKS={"000001.SS":"上证综指","399001.SZ":"深证成指","399006.SZ":"创业板指"}
+HK_BENCHMARKS={"^HSI":"恒生指数","^HSCE":"恒生国企指数"}
+
+def get_market_context_cn_hk(symbol,market):
+    bm={"cn":CN_BENCHMARKS,"hk":HK_BENCHMARKS}.get(market,{})
+    bd={}
+    for etf,name in bm.items():
+        try:
+            t=yf.Ticker(etf);df=t.history(period=PERIOD,interval=INTERVAL)
+            if not df.empty:
+                df=df[df["Close"].notna()]
+                if len(df)>=2:
+                    c=float(df["Close"].iloc[-1])
+                    p5=float(df["Close"].iloc[-6]) if len(df)>=6 else float(df["Close"].iloc[0])
+                    p20=float(df["Close"].iloc[-21]) if len(df)>=21 else float(df["Close"].iloc[0])
+                    bd[etf]={"name":name,"price":round(c,2),"change_5d":round((c-p5)/p5*100,2),"change_20d":round((c-p20)/p20*100,2),"above_ma50":None}
+        except Exception:continue
+    regime=_determine_market_regime(bd,pd.DataFrame())
+    sigs=[]
+    if regime["label"]=="risk_on":sigs.append({"name":"大盘强势","type":"bullish","weight":1})
+    elif regime["label"]=="risk_off":sigs.append({"name":"大盘弱势","type":"bearish","weight":2})
+    if not sigs:sigs.append({"name":"市场背景正常","type":"neutral","weight":0})
+    return {"benchmarks":bd,"sector_etf":"","sector_etf_name":"","relative_strength":{},"market_regime":regime,"signals":sigs}

@@ -1,0 +1,13 @@
+{
+  "symbol": "COST",
+  "market_state": "POSTPOST",
+  "live_price": 949.15,
+  "previous_close": 941.99,
+  "day_high": 966.135,
+  "day_low": 941.78,
+  "day_open": 959.55,
+  "volume": 1676358,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070799.8789928
+}

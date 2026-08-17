@@ -1,0 +1,13 @@
+{
+  "symbol": "AAPL",
+  "market_state": "POSTPOST",
+  "live_price": 312.41,
+  "previous_close": 311.0,
+  "day_high": 316.2894,
+  "day_low": 309.23,
+  "day_open": 314.34,
+  "volume": 45392526,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070766.994147
+}

@@ -1,0 +1,13 @@
+{
+  "_说明": "自选股配置示例 — 复制为 watchlist.json 后编辑",
+  "_提示": [
+    "1. 复制本文件为 watchlist.json: cp watchlist.example.json watchlist.json",
+    "2. 编辑 watchlist.json 添加你的股票",
+    "3. 支持代码: MSFT, 0700.HK, 600519.SS",
+    "4. 支持中文名: 微软, 腾讯, 茅台",
+    "5. 支持英文名: Microsoft, Apple, Tesla"
+  ],
+  "core_index": ["SPY", "QQQ"],
+  "my_stocks": ["微软", "NVDA", "腾讯"],
+  "hk": ["0700.HK", "9988.HK"]
+}

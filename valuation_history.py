@@ -124,3 +124,33 @@ def get_historical_valuation(symbol: str) -> dict:
         result["signals"].append({"name": "历史估值数据正常", "type": "neutral", "weight": 0})
 
     return result
+
+
+def get_historical_valuation_cn_hk(symbol,market,df):
+    """CN/HK historical valuation using already-fetched DataFrame."""
+    result={"current_price":None,"current_pe":None,"forward_pe":None,
+        "price_percentile_1y":None,"price_percentile_3y":None,"price_percentile_5y":None,
+        "price_vs_ma200":None,"pe_assessment":None,"signals":[]}
+    if df is None or df.empty:
+        result["signals"].append({"name":"无历史数据","type":"neutral","weight":0})
+        return result
+    close=df["close"]
+    cur=float(close.iloc[-1])
+    result["current_price"]=round(cur,2)
+    now=pd.Timestamp.now()
+    for pn,pm in [("1y",12),("3y",36)]:
+        cutoff=now-pd.DateOffset(months=pm)
+        pdata=close[close.index>=cutoff]
+        if len(pdata)>=50:
+            result[f"price_percentile_{pn}"]=round(float((pdata<cur).sum()/len(pdata)*100),1)
+    if len(close)>=200:
+        ma200=float(close.rolling(200).mean().iloc[-1])
+        if ma200>0: result["price_vs_ma200"]=round((cur-ma200)/ma200*100,1)
+    p5y=result.get("price_percentile_3y")
+    if p5y and p5y>90: result["signals"].append({"name":f"3年价格分位{p5y}%（高位）","type":"bearish","weight":1})
+    elif p5y and p5y<20: result["signals"].append({"name":f"3年价格分位{p5y}%（低位）","type":"bullish","weight":2})
+    dev=result.get("price_vs_ma200")
+    if dev and dev>30: result["signals"].append({"name":f"价格高于MA200 {dev:.0f}%","type":"bearish","weight":2})
+    elif dev and dev<-20: result["signals"].append({"name":f"价格低于MA200 {abs(dev):.0f}%","type":"bullish","weight":2})
+    if not result["signals"]: result["signals"].append({"name":"历史估值数据正常","type":"neutral","weight":0})
+    return result

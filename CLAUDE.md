@@ -29,7 +29,7 @@ cd /Users/kamchiu/PycharmProjects/stock_monitor && python3.12 main.py
 ## 命令参考
 
 ```bash
-# 分析 config.py 中的全部股票
+# 分析 watchlist.json 中的全部股票（默认）
 python3.12 main.py
 
 # 只分析指定股票
@@ -43,7 +43,39 @@ python3.12 main.py -s MSFT --interval 60
 
 # 离线模式（不联网，用本地测试数据）
 python3.12 main.py --local -s MSFT
+
+# 🆕 行业轮动排名（11个板块多周期涨幅排名 + 资金流向判断）
+python3.12 main.py --sector
+
+# 🆕 大盘状态灯（SPY/QQQ 均线交叉 + 仓位建议）
+python3.12 main.py --market-status
+
+# 🆕 全量分析（大盘状态 + 行业轮动 + 个股分析，一键跑完）
+python3.12 main.py --all
+
+# 🆕 指定自选股配置文件
+python3.12 main.py --watchlist my_stocks.json
+
+# 🆕 生成示例 watchlist.json
+python3.12 main.py --init-watchlist
 ```
+
+## 自选股配置（watchlist.json）
+
+股票列表从 `watchlist.json` 加载，支持分组式和扁平式两种 JSON 格式。
+以 `_` 开头的字段为元数据（注释），不会被加载。
+优先级：`watchlist.json` > `watchlist.txt` > `config.py SYMBOLS`
+
+```json
+{
+  "_说明": "自选股配置文件",
+  "core_index": ["SPY", "QQQ"],
+  "mag7": ["MSFT", "AAPL", "NVDA"],
+  "hk": ["0700.HK"]
+}
+```
+
+运行 `python3.12 main.py --init-watchlist` 生成示例文件。
 
 ## 股票代码格式
 
@@ -54,7 +86,7 @@ python3.12 main.py --local -s MSFT
 | A股深圳 | `.SZ` 后缀 | `300750.SZ` (宁德) |
 | 港股 | `.HK` 后缀 | `0700.HK` (腾讯) |
 
-修改 `config.py` 中的 `SYMBOLS` 列表来添加/删除标的。
+修改 `watchlist.json`（推荐）或 `config.py` 中的 `SYMBOLS` 列表来添加/删除标的。
 
 ## 错误处理指南
 
@@ -80,12 +112,16 @@ sleep 900 && python3.12 main.py -s MSFT
 
 ```
 main.py              ← 入口，命令行解析
-config.py            ← ⭐ 股票列表、指标参数、评分权重
+config.py            ← 指标参数、评分权重（股票列表已迁移到 watchlist.json）
+watchlist.json       ← ⭐ 自选股配置文件（手动编辑，支持分组）
+watchlist_loader.py  ← 🆕 自选股配置加载器（JSON/TXT 双格式）
+sector_rotation.py   ← 🆕 行业轮动排名（11个ETF多周期排名+资金流向）
+market_status.py     ← 🆕 大盘状态灯（SPY/QQQ 均线交叉+仓位建议）
 indicators.py        ← MA/BOLL/RSI/MACD/KDJ 计算
 signals.py           ← 金叉死叉/背离检测
 patterns.py          ← K线形态识别
 analyzer.py          ← 综合评分引擎
-report.py            ← Rich 终端报告渲染
+report.py            ← Rich 终端报告渲染（含行业轮动+大盘状态报告）
 levels.py            ← 支撑/阻力/情景推演
 fundamentals.py      ← 美股基本面
 fundamentals_cn.py   ← A股/港股基本面

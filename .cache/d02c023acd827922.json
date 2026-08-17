@@ -1,0 +1,13 @@
+{
+  "symbol": "JPM",
+  "market_state": "POSTPOST",
+  "live_price": 356.3,
+  "previous_close": 359.24,
+  "day_high": 362.71,
+  "day_low": 354.945,
+  "day_open": 362.81,
+  "volume": 5649904,
+  "exchange": "NYQ",
+  "currency": "USD",
+  "_cached_at": 1786070782.0953841
+}

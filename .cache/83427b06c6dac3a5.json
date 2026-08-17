@@ -1,0 +1,13 @@
+{
+  "symbol": "META",
+  "market_state": "POSTPOST",
+  "live_price": 589.9,
+  "previous_close": 588.77,
+  "day_high": 595.31,
+  "day_low": 585.995,
+  "day_open": 586.335,
+  "volume": 11663468,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070775.720497
+}

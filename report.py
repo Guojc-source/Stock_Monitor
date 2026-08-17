@@ -13,6 +13,7 @@ from rich.columns import Columns
 from datetime import datetime
 
 console = Console()
+_cur = "$"  # module-level currency symbol, set by generate_report
 
 
 def _score_color(score: int) -> str:
@@ -43,7 +44,10 @@ def _sig_type_color(t: str) -> str:
 
 def generate_report(analysis: dict):
     """生成完整的六维分析报告"""
+    global _cur
     symbol = analysis["symbol"]
+    market = analysis.get("market", "us")
+    _cur = "¥" if market == "cn" else ("HK$" if market == "hk" else "$")
 
     # 大标题
     _print_banner(symbol, analysis)
@@ -107,6 +111,8 @@ def generate_summary_table(results: dict[str, dict]):
     table.add_column("关键信号", width=35)
 
     for sym, a in results.items():
+        m = a.get("market", "us")
+        _cur = "¥" if m == "cn" else ("HK$" if m == "hk" else "$")
         s = a["snapshot"]
         score = a["score"]
 
@@ -115,7 +121,7 @@ def generate_summary_table(results: dict[str, dict]):
 
         table.add_row(
             sym,
-            f"${s['price']}" if s.get("price") else "N/A",
+            f"{_cur}{s['price']}" if s.get("price") else "N/A",
             f"{s.get('change_5d', 0):+.1f}%" if s.get("change_5d") else "—",
             f"[{_score_color(score)} bold]{score}[/{_score_color(score)} bold]",
             a["trend"]["direction"],
@@ -157,7 +163,7 @@ def _print_banner(symbol: str, analysis: dict):
     text.append(f"║  [{health_color}]{health}[/{health_color}]", style="")
     text.append(f" | 市场: {market_state}", style="dim")
     if live_price:
-        text.append(f" | 实时: ${live_price:.2f}", style="dim")
+        text.append(f" | 实时: {_cur}{live_price:.2f}", style="dim")
     text.append(" " * max(1, 20 - len(health)), style="")
     text.append("║\n", style="bold cyan")
 
@@ -221,7 +227,7 @@ def _print_key_levels(levels_data: dict):
     table.add_column("强度", width=8)
 
     # 当前价
-    table.add_row("💰 现价", f"[bold white]${current:.2f}[/bold white]", "—", "—")
+    table.add_row("💰 现价", f"[bold white]{_cur}{current:.2f}[/bold white]", "—", "—")
 
     # 阻力位（从近到远）
     for i, r in enumerate(resistances):
@@ -229,7 +235,7 @@ def _print_key_levels(levels_data: dict):
         icon = "🔴" if i == 0 else "⬆️"
         table.add_row(
             f"{icon} 阻力{i+1}",
-            f"[red]${r['price']:.2f}[/red] (+{dist:.1f}%)",
+            f"[red]{_cur}{r['price']:.2f}[/red] (+{dist:.1f}%)",
             r["method"],
             r["strength"],
         )
@@ -240,7 +246,7 @@ def _print_key_levels(levels_data: dict):
         icon = "🟢" if i == 0 else "⬇️"
         table.add_row(
             f"{icon} 支撑{i+1}",
-            f"[green]${s['price']:.2f}[/green] (-{dist:.1f}%)",
+            f"[green]{_cur}{s['price']:.2f}[/green] (-{dist:.1f}%)",
             s["method"],
             s["strength"],
         )
@@ -307,15 +313,15 @@ def _print_technical_snapshot(snapshot: dict):
 
     # 价格
     chg = f"{s.get('change_5d', 0):+.2f}%" if s.get("change_5d") else "—"
-    _add("最新价", f"${s.get('price', 'N/A')}", f"5日涨跌: {chg}")
+    _add("最新价", f"{_cur}{s.get('price', 'N/A')}", f"5日涨跌: {chg}")
 
     # 均线
     if s.get("MA50"):
         above = s["price"] and s["price"] > s["MA50"]
-        _add("MA50（中期）", f"${s['MA50']}", "股价在上方 ✅" if above else "股价跌破 ⚠️", warn=not above)
+        _add("MA50（中期）", f"{_cur}{s['MA50']}", "股价在上方 ✅" if above else "股价跌破 ⚠️", warn=not above)
     if s.get("MA200"):
         above = s["price"] and s["price"] > s["MA200"]
-        _add("MA200（牛熊线）", f"${s['MA200']}", "股价在上方 ✅" if above else "股价跌破 🚨", warn=not above)
+        _add("MA200（牛熊线）", f"{_cur}{s['MA200']}", "股价在上方 ✅" if above else "股价跌破 🚨", warn=not above)
 
     # RSI
     if s.get("RSI") is not None:
@@ -437,7 +443,7 @@ def _print_options_section(od: dict):
         table.add_row("P/C 持仓比 (近期)", f"{pcr_near['oi_pcr']}")
 
     if max_pain:
-        table.add_row("最大痛点", f"${max_pain:.0f}")
+        table.add_row("最大痛点", f"{_cur}{max_pain:.0f}")
 
     if pcr_near.get("total_call_volume"):
         table.add_row("Call 总成交量", f"{pcr_near['total_call_volume']:,}张")
@@ -459,7 +465,7 @@ def _print_options_section(od: dict):
             icon = "🟢" if u["type"] == "CALL" else "🔴"
             u_table.add_row(
                 f"{icon} {u['type']}",
-                f"${u['strike']:.0f}",
+                f"{_cur}{u['strike']:.0f}",
                 f"{u['volume']:,}",
                 f"{u['open_interest']:,}",
                 u["premium"],
@@ -492,7 +498,7 @@ def _print_market_context(cd: dict):
     for etf, data in benchmarks.items():
         table.add_row(
             f"{etf} ({data['name']})",
-            f"${data['price']:.2f}" if data.get("price") else "N/A",
+            f"{_cur}{data['price']:.2f}" if data.get("price") else "N/A",
             f"{data.get('change_5d', 0):+.1f}%" if data.get("change_5d") else "—",
             f"{data.get('change_20d', 0):+.1f}%" if data.get("change_20d") else "—",
         )
@@ -683,7 +689,7 @@ def _print_verification_checklist(analysis: dict):
     market_state = (analysis.get("live_info") or {}).get("market_state", "?")
 
     items = [
-        "对比富途最新价：系统显示 $" + f"{analysis['snapshot']['price']:.2f}" if analysis['snapshot'].get('price') else "对比富途最新价",
+        "对比富途最新价：系统显示 " + _cur + f"{analysis['snapshot']['price']:.2f}" if analysis['snapshot'].get('price') else "对比富途最新价",
         "对比富途昨收价：交叉验证卡里的「收盘价(yf)」vs 富途昨收",
         "检查数据日期：交叉验证卡里的「数据日期」是否 = 最近交易日",
         ("⚠️ 数据是实时回填的（yahoo未结算），和富途盘后价对比" if is_backfilled else "✅ 数据是已结算收盘价，和富途日K收盘价对比"),
@@ -705,3 +711,327 @@ def _print_footer():
     console.print(f"\n[dim]{'─'*70}[/dim]")
     console.print(f"[dim]yfinance v{ver} | 数据来源: Yahoo Finance | 仅供参考，不构成投资建议 | 投资有风险，入市需谨慎[/dim]")
     console.print(f"[dim]{'─'*70}[/dim]\n")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  行业轮动报告
+# ═══════════════════════════════════════════════════════════════
+
+def print_sector_rotation_report(result: dict):
+    """打印行业轮动排名报告"""
+    console.print(f"\n[bold cyan]╔══════════════════════════════════════════════════════════╗[/bold cyan]")
+    console.print(f"[bold cyan]║[/bold cyan]   🔄 行业轮动排名  |  {result['timestamp']:<32s} [bold cyan]║[/bold cyan]")
+    console.print(f"[bold cyan]╚══════════════════════════════════════════════════════════╝[/bold cyan]")
+
+    # 1. 资金流向总览
+    flow = result["flow"]
+    flow_desc = result["flow_description"]
+    flow_color = {
+        "risk_on": "green",
+        "risk_off": "red",
+        "rotation_to_cyclical": "yellow",
+        "rotation_to_defensive": "yellow",
+        "rotation": "yellow",
+        "neutral": "yellow",
+    }.get(flow, "white")
+
+    console.print(Panel(
+        f"[{flow_color} bold]{flow_desc}[/{flow_color} bold]",
+        title="💰 资金流向",
+        border_style=flow_color,
+    ))
+
+    # 2. 行业排名表
+    table = Table(title="📊 行业板块排名（按20日涨幅）", box=box.ROUNDED, border_style="cyan")
+    table.add_column("排名", width=5, style="bold")
+    table.add_column("板块", width=12)
+    table.add_column("ETF", width=6, style="bold cyan")
+    table.add_column("价格", width=10)
+    table.add_column("5日", width=8)
+    table.add_column("20日", width=8)
+    table.add_column("60日", width=8)
+    table.add_column("动量", width=8)
+    table.add_column("趋势", width=10)
+
+    # 按 20 日涨幅排名
+    sorted_sectors = sorted(
+        result["sectors"],
+        key=lambda x: x.get("change_20d") or -999,
+        reverse=True,
+    )
+
+    for i, s in enumerate(sorted_sectors):
+        rank = i + 1
+        # 排名颜色
+        if rank <= 3:
+            rank_style = "bold green"
+        elif rank >= len(sorted_sectors) - 2:
+            rank_style = "bold red"
+        else:
+            rank_style = "white"
+
+        # 涨跌颜色
+        def chg_cell(val):
+            if val is None:
+                return "—"
+            color = "green" if val > 0 else "red" if val < 0 else "white"
+            return f"[{color}]{val:+.1f}%[/{color}]"
+
+        # 动量得分
+        mom = s.get("momentum_score", 0)
+        mom_color = "green" if mom > 0 else "red" if mom < 0 else "white"
+
+        # 趋势标记
+        ma20 = s.get("ma20_above")
+        ma50 = s.get("ma50_above")
+        if ma20 and ma50:
+            trend = "[green]强势[/green]"
+        elif ma20 and not ma50:
+            trend = "[yellow]反弹[/yellow]"
+        elif not ma20 and ma50:
+            trend = "[yellow]回调[/yellow]"
+        else:
+            trend = "[red]弱势[/red]"
+
+        table.add_row(
+            f"[{rank_style}]{rank}[/{rank_style}]",
+            s["name"],
+            s["symbol"],
+            f"${s['price']:.2f}",
+            chg_cell(s.get("change_5d")),
+            chg_cell(s.get("change_20d")),
+            chg_cell(s.get("change_60d")),
+            f"[{mom_color}]{mom:.0f}[/{mom_color}]",
+            trend,
+        )
+
+    console.print(table)
+
+    # 3. 基准指数对比
+    if result["benchmarks"]:
+        bench_table = Table(title="📈 基准指数", box=box.ROUNDED, border_style="blue")
+        bench_table.add_column("指数", width=16, style="bold")
+        bench_table.add_column("价格", width=10)
+        bench_table.add_column("5日", width=8)
+        bench_table.add_column("20日", width=8)
+        bench_table.add_column("60日", width=8)
+
+        for b in result["benchmarks"]:
+            def chg_cell(val):
+                if val is None:
+                    return "—"
+                color = "green" if val > 0 else "red" if val < 0 else "white"
+                return f"[{color}]{val:+.1f}%[/{color}]"
+
+            bench_table.add_row(
+                f"{b['symbol']} ({b['name']})",
+                f"${b['price']:.2f}",
+                chg_cell(b.get("change_5d")),
+                chg_cell(b.get("change_20d")),
+                chg_cell(b.get("change_60d")),
+            )
+        console.print(bench_table)
+
+    # 4. 领涨/领跌摘要
+    leaders = result.get("leaders", [])
+    laggards = result.get("laggards", [])
+
+    if leaders or laggards:
+        lines = []
+        if leaders:
+            leader_str = "、".join(
+                f"{l['name']}({l['symbol']}) {l['change_20d']:+.1f}%"
+                for l in leaders if l.get("change_20d") is not None
+            )
+            lines.append(f"  🟢 [bold green]领涨[/bold green]: {leader_str}")
+        if laggards:
+            laggard_str = "、".join(
+                f"{l['name']}({l['symbol']}) {l['change_20d']:+.1f}%"
+                for l in laggards if l.get("change_20d") is not None
+            )
+            lines.append(f"  🔴 [bold red]领跌[/bold red]: {laggard_str}")
+
+        console.print(Panel("\n".join(lines), title="🏆 领涨 vs 领跌", border_style="magenta"))
+
+    # 5. 操作建议
+    advice = _sector_rotation_advice(result)
+    console.print(Panel(advice, title="💡 行业轮动操作建议", border_style="yellow"))
+
+    _print_footer()
+
+
+def _sector_rotation_advice(result: dict) -> str:
+    """根据行业轮动数据生成操作建议"""
+    lines = []
+    flow = result["flow"]
+
+    if flow == "risk_on":
+        lines.append("市场整体偏多，可以积极配置科技/消费周期板块")
+        lines.append("关注领涨板块中的个股，顺势做多")
+    elif flow == "risk_off":
+        lines.append("市场整体偏弱，减少进攻性配置")
+        lines.append("考虑增加必需消费/医疗/公用事业等防御板块")
+        lines.append("保留现金，等待市场企稳信号")
+    elif flow.startswith("rotation"):
+        lines.append("板块分化明显，不要追涨杀跌")
+        leaders = result.get("leaders", [])
+        if leaders:
+            top = leaders[0]
+            lines.append(f"当前领涨: {top['name']}({top['symbol']})，可关注该板块内强势个股")
+    else:
+        lines.append("市场方向不明，保持当前配置不变")
+        lines.append("等待 20 日涨幅分化 >5% 后再做调仓决策")
+
+    # 补充通用建议
+    leaders = result.get("leaders", [])
+    laggards = result.get("laggards", [])
+    if leaders and laggards:
+        leader_20d = leaders[0].get("change_20d", 0)
+        laggard_20d = laggards[-1].get("change_20d", 0) if laggards else 0
+        spread = leader_20d - laggard_20d
+        if spread > 15:
+            lines.append(f"\n⚠️ 板块极差 {spread:.0f}%，分化极端，注意轮动风险")
+
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  大盘状态灯报告
+# ═══════════════════════════════════════════════════════════════
+
+def print_market_status_report(status: dict):
+    """打印大盘状态灯报告"""
+    light = status["light"]
+    border_color = {"green": "green", "yellow": "yellow", "red": "red"}[light]
+
+    console.print(f"\n[bold {border_color}]╔══════════════════════════════════════════════════════════╗[/bold {border_color}]")
+    console.print(f"[bold {border_color}]║[/bold {border_color}]   {status['light_emoji']} 大盘状态灯  |  {status['timestamp']:<32s} [bold {border_color}]║[/bold {border_color}]")
+    console.print(f"[bold {border_color}]╚══════════════════════════════════════════════════════════╝[/bold {border_color}]")
+
+    # 1. 状态大标题
+    console.print(Panel(
+        f"\n  [bold {border_color}]{status['title']}[/bold {border_color}]\n\n"
+        f"  {status['description']}\n",
+        title="🚦 当前状态",
+        border_style=border_color,
+        padding=(0, 3),
+    ))
+
+    # 2. 仓位建议
+    pos = status["position_advice"]
+    pos_bar = "█" * (pos // 5) + "░" * (20 - pos // 5)
+    pos_color = "green" if pos >= 70 else "yellow" if pos >= 50 else "red"
+
+    console.print(Panel(
+        f"\n  建议股票仓位: [{pos_color} bold]{pos}%[/{pos_color} bold]\n"
+        f"  [{pos_color}]{pos_bar}[/{pos_color}]\n\n"
+        f"  [dim]（含核心指数 + 卫星个股，不含债券/黄金/现金）[/dim]\n",
+        title="📊 仓位建议",
+        border_style=pos_color,
+        padding=(0, 3),
+    ))
+
+    # 3. 指数详情表
+    table = Table(title="📈 指数详情", box=box.ROUNDED, border_style="blue")
+    table.add_column("指标", style="cyan", width=18)
+    table.add_column("SPY (标普500)", width=22)
+    table.add_column("QQQ (纳指100)", width=22)
+
+    spy = status.get("spy", {})
+    qqq = status.get("qqq", {})
+
+    def fmt_price(d):
+        return f"${d.get('price', 'N/A')}" if d.get("price") else "N/A"
+
+    def fmt_chg(val):
+        if val is None:
+            return "—"
+        color = "green" if val > 0 else "red" if val < 0 else "white"
+        return f"[{color}]{val:+.1f}%[/{color}]"
+
+    def fmt_bool(val, true_text="✅", false_text="⚠️"):
+        if val is True:
+            return f"[green]{true_text}[/green]"
+        elif val is False:
+            return f"[red]{false_text}[/red]"
+        return "—"
+
+    def fmt_slope(val):
+        if val is None:
+            return "—"
+        color = "green" if val > 0 else "red"
+        return f"[{color}]{val:+.2f}%[/{color}]"
+
+    table.add_row("最新价", fmt_price(spy), fmt_price(qqq))
+    table.add_row("5日涨跌", fmt_chg(spy.get("change_5d")), fmt_chg(qqq.get("change_5d")))
+    table.add_row("20日涨跌", fmt_chg(spy.get("change_20d")), fmt_chg(qqq.get("change_20d")))
+    table.add_row("60日涨跌", fmt_chg(spy.get("change_60d")), fmt_chg(qqq.get("change_60d")))
+    table.add_row("MA20", f"${spy.get('ma20', 'N/A')}" if spy.get("ma20") else "N/A",
+                  f"${qqq.get('ma20', 'N/A')}" if qqq.get("ma20") else "N/A")
+    table.add_row("MA50", f"${spy.get('ma50', 'N/A')}" if spy.get("ma50") else "N/A",
+                  f"${qqq.get('ma50', 'N/A')}" if qqq.get("ma50") else "N/A")
+    table.add_row("MA200", f"${spy.get('ma200', 'N/A')}" if spy.get("ma200") else "N/A",
+                  f"${qqq.get('ma200', 'N/A')}" if qqq.get("ma200") else "N/A")
+    table.add_row("价格 > MA50", fmt_bool(spy.get("above_ma50")), fmt_bool(qqq.get("above_ma50")))
+    table.add_row("价格 > MA200", fmt_bool(spy.get("above_ma200")), fmt_bool(qqq.get("above_ma200")))
+    table.add_row("MA50 斜率", fmt_slope(spy.get("ma50_slope")), fmt_slope(qqq.get("ma50_slope")))
+    table.add_row("MA200 斜率", fmt_slope(spy.get("ma200_slope")), fmt_slope(qqq.get("ma200_slope")))
+    table.add_row("距52周高点", f"{spy.get('drawdown_from_high', 'N/A')}%" if spy.get("drawdown_from_high") is not None else "N/A",
+                  f"{qqq.get('drawdown_from_high', 'N/A')}%" if qqq.get("drawdown_from_high") is not None else "N/A")
+    table.add_row("20日波动率(年化)", f"{spy.get('volatility_20d', 'N/A')}%" if spy.get("volatility_20d") else "N/A",
+                  f"{qqq.get('volatility_20d', 'N/A')}%" if qqq.get("volatility_20d") else "N/A")
+
+    console.print(table)
+
+    # 4. 金叉/死叉状态
+    cross = spy.get("cross", {})
+    if cross.get("description"):
+        cross_status = cross.get("status", "")
+        cross_color = "green" if "golden" in cross_status or "ma50_above" in cross_status else \
+                      "red" if "death" in cross_status or "ma50_below" in cross_status else "yellow"
+
+        console.print(Panel(
+            f"\n  [{cross_color}]{cross['description']}[/{cross_color}]\n"
+            + (f"  [dim]MA50/MA200 差值: {cross.get('ma50_ma200_diff_pct', 0):+.2f}%[/dim]\n"
+               if cross.get("ma50_ma200_diff_pct") is not None else ""),
+            title="🔀 MA50/MA200 交叉状态",
+            border_style=cross_color,
+        ))
+
+    # 5. 操作清单
+    checklist = status.get("checklist", [])
+    if checklist:
+        items = "\n".join(f"  {i+1}. {item}" for i, item in enumerate(checklist))
+        console.print(Panel(
+            f"\n{items}\n",
+            title="📋 操作清单",
+            border_style=border_color,
+        ))
+
+    # 6. 补充说明
+    notes = [
+        "🟢 绿灯 = 趋势向上，SPY > MA50 > MA200，MA50 向上倾斜",
+        "🟡 黄灯 = 方向不明，均线纠缠或部分条件不满足",
+        "🔴 红灯 = 趋势向下，SPY < MA50 < MA200，MA50 向下倾斜",
+        "",
+        "⚠️ 状态灯是「大环境过滤器」，不代替个股分析",
+        "   红灯时即便个股评分高也要谨慎；绿灯时低评分个股仍可能有风险",
+    ]
+    console.print(Panel("\n".join(notes), title="📖 状态灯说明", border_style="dim"))
+
+    _print_footer()
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Watchlist 来源信息报告头
+# ═══════════════════════════════════════════════════════════════
+
+def print_watchlist_header(source_info: dict):
+    """在报告头部打印 watchlist 来源信息"""
+    from rich.markup import escape
+    path_escaped = escape(source_info['path'])
+    console.print(
+        f"  [dim]📋 自选股来源: {source_info['source']} "
+        f"({source_info['count']} 只) "
+        f"{path_escaped}[/dim]"
+    )

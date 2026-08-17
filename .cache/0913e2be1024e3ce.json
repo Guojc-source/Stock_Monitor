@@ -1,0 +1,13 @@
+{
+  "symbol": "JNJ",
+  "market_state": "POSTPOST",
+  "live_price": 256.98,
+  "previous_close": 257.59,
+  "day_high": 261.965,
+  "day_low": 255.28,
+  "day_open": 261.71,
+  "volume": 4302658,
+  "exchange": "NYQ",
+  "currency": "USD",
+  "_cached_at": 1786070785.31746
+}

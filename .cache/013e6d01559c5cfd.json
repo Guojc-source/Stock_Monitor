@@ -1,0 +1,13 @@
+{
+  "symbol": "TSLA",
+  "market_state": "POSTPOST",
+  "live_price": 319.53,
+  "previous_close": 321.55,
+  "day_high": 323.0,
+  "day_low": 315.5205,
+  "day_open": 317.05,
+  "volume": 25143733,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070779.20065
+}

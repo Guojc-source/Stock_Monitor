@@ -1,0 +1,13 @@
+{
+  "symbol": "AMZN",
+  "market_state": "POSTPOST",
+  "live_price": 272.26,
+  "previous_close": 272.65,
+  "day_high": 275.48,
+  "day_low": 271.0845,
+  "day_open": 272.765,
+  "volume": 27906615,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070770.1444988
+}

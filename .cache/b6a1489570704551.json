@@ -1,0 +1,13 @@
+{
+  "symbol": "PG",
+  "market_state": "POSTPOST",
+  "live_price": 146.97,
+  "previous_close": 146.8,
+  "day_high": 148.47,
+  "day_low": 145.45,
+  "day_open": 147.82,
+  "volume": 5647629,
+  "exchange": "NYQ",
+  "currency": "USD",
+  "_cached_at": 1786070791.429719
+}

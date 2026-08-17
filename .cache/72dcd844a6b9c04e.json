@@ -1,0 +1,13 @@
+{
+  "symbol": "NFLX",
+  "market_state": "POSTPOST",
+  "live_price": 73.69,
+  "previous_close": 74.2,
+  "day_high": 75.2,
+  "day_low": 73.1002,
+  "day_open": 75.03,
+  "volume": 28784866,
+  "exchange": "NMS",
+  "currency": "USD",
+  "_cached_at": 1786070803.29198
+}

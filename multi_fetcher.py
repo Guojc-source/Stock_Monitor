@@ -97,12 +97,15 @@ def _fetch_akshare(symbol: str, market: str, lookback_days: int = 180) -> pd.Dat
     end = datetime.now().strftime("%Y%m%d")
     adjust = "qfq"
     market_type = "cn" if market == "cn" else "hk"
+    _exch = "sh" if ".SS" in symbol.upper() else ("sz" if ".SZ" in symbol.upper() else "")
 
     script = f'''
 import os, json, warnings
 warnings.filterwarnings("ignore")
-for k in ["http_proxy","https_proxy","HTTP_PROXY","HTTPS_PROXY","all_proxy","ALL_PROXY","no_proxy"]:
-    os.environ.pop(k, None)
+for k in list(os.environ.keys()):
+    if "proxy" in k.lower(): os.environ.pop(k, None)
+os.environ["NO_PROXY"]="*"
+os.environ["no_proxy"]="*"
 import akshare as ak
 import pandas as pd
 
@@ -111,10 +114,37 @@ start = "{start}"
 end = "{end}"
 market_type = "{market_type}"
 
-if market_type == "cn":
-    df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start, end_date=end, adjust="{adjust}")
-else:
-    df = ak.stock_hk_hist(symbol=code, period="daily", start_date=start, end_date=end, adjust="{adjust}")
+df = None
+# Try primary: eastmoney API
+_fn = ak.stock_zh_a_hist if market_type=="cn" else ak.stock_hk_hist
+for _try in range(2):
+    try:
+        df = _fn(symbol=code, period="daily", start_date=start, end_date=end, adjust="{adjust}")
+        if df is not None and not df.empty: break
+    except Exception: pass
+    from datetime import datetime as _dt, timedelta as _td
+    end=(_dt.now()-_td(days=365*(_try+1))).strftime("%Y%m%d")
+    start=(_dt.now()-_td(days=365*(_try+1)+int("{lookback_days}"))).strftime("%Y%m%d")
+# Fallback: sina API for CN
+_ex="{_exch}"
+if (df is None or df.empty) and market_type=="cn" and _ex:
+    try:
+        df=ak.stock_zh_a_daily(symbol=_ex+code,adjust="{adjust}")
+        if df is not None and not df.empty:
+            from datetime import datetime as _dt, timedelta as _td
+            df["date"]=pd.to_datetime(df["date"])
+            df=df[df["date"]>=_dt.now()-_td(days=int("{lookback_days}"))].copy()
+    except Exception: pass
+# Fallback: sina API for HK
+if (df is None or df.empty) and market_type=="hk":
+    try:
+        _hkcode=code.zfill(5)
+        df=ak.stock_hk_daily(symbol=_hkcode,adjust="{adjust}")
+        if df is not None and not df.empty:
+            from datetime import datetime as _dt, timedelta as _td
+            df["date"]=pd.to_datetime(df["date"])
+            df=df[df["date"]>=_dt.now()-_td(days=int("{lookback_days}"))].copy()
+    except Exception: pass
 
 if df is None or df.empty:
     print(json.dumps({{"error": "empty"}}))
@@ -128,7 +158,8 @@ else:
     try:
         result = subprocess.run(
             ["/opt/homebrew/bin/python3.12", "-c", script],
-            capture_output=True, text=True, timeout=60
+            capture_output=True, text=True, timeout=60,
+            env={k:v for k,v in os.environ.items() if "proxy" not in k.lower()}
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"{symbol}: akshare 数据获取超时(60s)，请检查网络")
@@ -196,10 +227,9 @@ def fetch_stock_data_multi(symbol: str, period: str = "6mo") -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"{symbol}: 无有效数据")
 
-    print(f"  ✓ {symbol} [{source}] {len(df)}行, "
-          f"{df.index[0].strftime('%Y-%m-%d') if hasattr(df.index[0], 'strftime') else str(df.index[0])[:10]} → "
-          f"{df.index[-1].strftime('%Y-%m-%d') if hasattr(df.index[-1], 'strftime') else str(df.index[-1])[:10]}, "
-          f"最新 ¥{float(df['close'].iloc[-1]):.2f}" if market in ("cn", "hk")
-          else f"最新 ${float(df['close'].iloc[-1]):.2f}")
+    cur = "¥" if market == "cn" else ("HK$" if market == "hk" else "$")
+    d0 = df.index[0].strftime('%Y-%m-%d') if hasattr(df.index[0], 'strftime') else str(df.index[0])[:10]
+    d1 = df.index[-1].strftime('%Y-%m-%d') if hasattr(df.index[-1], 'strftime') else str(df.index[-1])[:10]
+    print(f"  ✓ {symbol} [{source}] {len(df)}行, {d0} → {d1}, 最新 {cur}{float(df['close'].iloc[-1]):.2f}")
 
     return df
