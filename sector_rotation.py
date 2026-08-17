@@ -1,16 +1,16 @@
 """
-行业轮动排名模块
-================
-拉取 11 个 SPDR 行业 ETF + 基准指数，计算多周期涨幅并排名，
-帮助判断资金流向哪个板块、哪些板块在领涨/领跌。
+Sector Rotation Ranking
+=======================
+Fetch 11 SPDR sector ETFs + benchmark indices, compute multi-period
+returns, and rank sectors by momentum to detect capital flow direction.
 
-用法:
+Usage:
     from sector_rotation import get_sector_rotation
     result = get_sector_rotation()
-    # result["rankings"] → 按 20 日涨幅排名
-    # result["leaders"]  → 领涨板块
-    # result["laggards"] → 领跌板块
-    # result["signals"]  → 轮动信号
+    # result["rankings"] → ranked by 20-day return
+    # result["leaders"]  → top-performing sectors
+    # result["laggards"] → underperforming sectors
+    # result["signals"]  → rotation signals
 """
 
 import yfinance as yf

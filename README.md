@@ -1,606 +1,394 @@
-# 📊 股票多维技术分析系统
+# Stock Monitor — Multi-Dimension Technical Analysis System
 
-## 一句话说明
+Quantitative analysis engine for US / A-share / HK equity markets. Integrates 10 analytical dimensions including technical indicators, fundamental valuation, options flow, news sentiment, sector rotation, and market regime detection. Outputs structured scoring reports with support/resistance levels, signal conflict analysis, and position sizing recommendations.
 
-输入股票代码，自动拉取数据，输出 **十维度综合分析报告**——支撑阻力、买卖信号、估值分位、期权资金、新闻情绪、**行业轮动排名**、**大盘状态灯**，支持美股/A股/港股。
+No API keys. No database. Python 3.12 + yfinance + akshare.
 
 ---
 
-## 系统架构
+## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph INPUT["📥 输入层"]
-        WL["watchlist.json<br/>自选股配置"]
-        CLI["CLI 参数<br/>-s / --sector / --market-status"]
-        ALIAS["ticker_alias.py<br/>名称→代码解析<br/>216 条别名"]
-    end
-
-    subgraph DATA["📡 数据获取层"]
-        direction LR
-        YF["yfinance<br/>美股/ETF/港股"]
-        AK["akshare<br/>A股/港股"]
-        CACHE["cache.py<br/>本地缓存 30min TTL"]
-    end
-
-    subgraph ANALYSIS["🧮 十维度分析引擎"]
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+    subgraph input["Input"]
         direction TB
-        TECH["📈 技术指标<br/>MA/BOLL/RSI/MACD/KDJ"]
-        FUND["🏢 基本面<br/>PE/PEG/ROE/增速"]
-        HIST["📐 历史估值<br/>5年分位/PE区间"]
-        SENT["📰 新闻情绪<br/>关键词分析"]
-        OPT["📊 期权资金<br/>P/C比/异常大单"]
-        MCTX["🌍 市场背景<br/>SPY/QQQ对标"]
-        SECT["🔄 行业轮动<br/>11 ETF 动量排名"]
-        MKST["🚦 大盘状态<br/>MA50/MA200交叉"]
-        LVL["📏 关键价位<br/>Fib/Pivot/支撑阻力"]
-        DV["✅ 数据验证<br/>8项质量检查"]
+        A1["watchlist.json\nor CLI -s MSFT"]
+        A2["ticker_alias.py\n216 name → code mappings"]
+        A1 --> A2
     end
 
-    subgraph SCORE["⚖️ 综合评分"]
-        W["加权评分引擎 analyzer.py"]
-        CS["Composite Score 0-100"]
+    subgraph data["Data Sources"]
+        direction TB
+        B1["yfinance — US / HK"]
+        B2["akshare — A-share / HK"]
+        B3["cache.py — 30min TTL"]
+        B1 --> B3
+        B2 --> B3
     end
 
-    subgraph OUTPUT["📤 输出层"]
-        RICH["Rich 终端报告<br/>彩色表格/面板/进度条"]
-        JSON_OUT["JSON 输出 --json"]
-        ALERT["Telegram 告警<br/>alert_monitor.py"]
+    subgraph engine["10-Dimension Engine"]
+        direction TB
+        C1["Technical: MA BOLL RSI MACD KDJ"]
+        C2["Fundamental: PE PEG ROE Growth"]
+        C3["Options Flow / Sentiment / Valuation"]
+        C4["Market Context / Sector Rotation / Regime"]
     end
 
-    WL --> ALIAS
-    CLI --> ALIAS
-    ALIAS --> YF & AK
-    YF --> CACHE
-    AK --> CACHE
-    CACHE --> TECH & FUND & HIST & SENT & OPT & MCTX & SECT & MKST & LVL & DV
-    TECH --> W
-    FUND --> W
-    HIST --> W
-    SENT --> W
-    OPT --> W
-    MCTX --> W
-    SECT --> W
-    MKST --> W
-    LVL --> W
-    DV --> W
-    W --> CS
-    CS --> RICH & JSON_OUT & ALERT
+    subgraph output["Output"]
+        direction TB
+        D1["Composite Score 0-100"]
+        D2["Rich Terminal Report"]
+        D1 --> D2
+    end
+
+    input --> data --> engine --> output
 ```
 
-## 多维评分模型
+## Scoring Model
 
-### 评分公式
+### Composite Score
 
-系统采用**十维度加权评分模型**，综合技术面、基本面、情绪面、资金面进行量化评估：
+Weighted multi-factor model across technical, fundamental, sentiment, and capital flow dimensions:
 
 $$
 \text{Score} = \frac{\displaystyle\sum_{i=1}^{10} W_i \times S_i}{\displaystyle\sum_{i=1}^{10} W_i}
 $$
 
-其中 $W_i$ 为维度权重，$S_i$ 为维度原始分（0-100）。
+Where $W_i$ = dimension weight, $S_i$ = raw score (0–100).
 
-各维度权重分配（基于实战经验调优）：
+| Dimension | Weight | Scoring Logic |
+|-----------|:------:|---------------|
+| Technical Trend | 20% | MA alignment +20, MACD golden cross +15, RSI overbought -20 |
+| Technical Signals | 10% | Golden/death cross, divergence detection |
+| Fundamentals | 15% | PEG<1, ROE>15%, revenue growth>20% |
+| Historical Valuation | 10% | 5Y price percentile: <30% bullish, >70% bearish |
+| News Sentiment | 8% | Positive keyword frequency weighting |
+| Options Flow | 7% | P/C ratio anomaly + large order net inflow |
+| Market Context | 10% | Relative strength: stock vs SPY/sector ETF |
+| Sector Rotation | 8% | Sector momentum ranking weight |
+| Market Regime | 7% | Green +10, Yellow 0, Red -15 |
+| Data Quality | 5% | 8-point validation pass rate |
 
-| 维度 | 权重 | 评分逻辑 |
-|------|:----:|---------|
-| 📈 技术趋势 | 20% | MA多头排列+20, MACD金叉+15, RSI超买-20 |
-| 📉 技术信号 | 10% | 金叉死叉/背离检测 |
-| 🏢 基本面 | 15% | PEG<1加分, ROE>15%加分, 增速>20%加分 |
-| 📐 历史估值 | 10% | 5年价格分位: <30%加分, >70%扣分 |
-| 📰 新闻情绪 | 8% | 正面关键词频率加权 |
-| 📊 期权资金 | 7% | P/C比异常+大单净流入 |
-| 🌍 市场背景 | 10% | 相对强弱: 个股 vs SPY/行业ETF |
-| 🔄 行业轮动 | 8% | 所在板块动量排名加权 |
-| 🚦 大盘状态 | 7% | 绿灯+10, 黄灯0, 红灯-15 |
-| ✅ 数据可信度 | 5% | 8项验证通过比例 |
-
-### 技术趋势评分子模型
+### Technical Trend Sub-Model
 
 ```
-技术趋势分 = 基础分(50)
-           + MA排列修正     (多头排列+20 / 空头排列-20 / 纠缠0)
-           + MACD修正       (金叉+15 / 死叉-15 / 零轴上+5)
-           + RSI修正        (超买>70→-20 / 超卖<30→+15 / 中性0)
-           + 布林修正       (突破上轨-10 / 跌破下轨+10)
-           + KDJ修正        (金叉+10 / 死叉-10)
-           + 量比修正       (放量突破+10 / 缩量下跌-5)
+Trend Score = Base(50)
+  + MA alignment   (bullish +20 / bearish -20 / neutral 0)
+  + MACD signal    (golden cross +15 / death cross -15 / above zero +5)
+  + RSI            (overbought >70 → -20 / oversold <30 → +15)
+  + Bollinger      (upper band break -10 / lower band break +10)
+  + KDJ            (golden cross +10 / death cross -10)
+  + Volume ratio   (breakout on volume +10 / decline on low vol -5)
 
-MA多头排列判定: price > MA5 > MA20 > MA60 > MA200
+Bullish alignment: price > MA5 > MA20 > MA60 > MA200
 ```
 
-### 综合建议映射
+### Signal-to-Action Mapping
 
-| 评分区间 | 建议 | 操作策略 |
-|:--------:|------|---------|
-| 75-100 | 🟢 强烈买入 | 逢回调加仓，设好止损 |
-| 60-74 | 🟢 偏多 | 持有/轻仓买入，关注阻力 |
-| 45-59 | 🟡 中性 | 观望，等突破或回踩确认 |
-| 30-44 | 🔴 偏空 | 减仓/不加仓，关注支撑 |
-| 0-29 | 🔴 强烈卖出 | 止损离场，等趋势反转 |
+| Score Range | Signal | Strategy |
+|:-----------:|--------|----------|
+| 75–100 | Strong Buy | Accumulate on pullbacks, set stop-loss |
+| 60–74 | Bullish | Hold / light buy, monitor resistance |
+| 45–59 | Neutral | Wait for breakout or pullback confirmation |
+| 30–44 | Bearish | Reduce exposure, monitor support |
+| 0–29 | Strong Sell | Exit positions, wait for reversal |
 
-## 行业轮动算法
+## Sector Rotation Algorithm
 
-### 多周期动量评分
+### Multi-Period Momentum Scoring
 
 $$
 \text{Momentum} = 0.50 \times R_5 + 0.30 \times R_{20} + 0.20 \times R_{60}
 $$
 
-其中 $R_n$ 为 n 日涨幅在 11 个行业中的排名归一化分数（0-100）。
+$R_n$ = rank-normalized n-day return across 11 SPDR sector ETFs (0–100).
 
-### 资金流向判断
-
-系统通过**进攻型 vs 防守型**板块对比判断资金流向：
+### Capital Flow Detection
 
 ```mermaid
+%%{init: {'theme':'neutral'}}%%
 flowchart LR
-    subgraph ATTACK["进攻型板块"]
-        XLK["科技 XLK"]
-        XLY["消费周期 XLY"]
-        XLF["金融 XLF"]
-        XLI["工业 XLI"]
+    subgraph cyclical["Cyclical Sectors"]
+        XLK["Technology XLK"]
+        XLY["Cons. Discretionary XLY"]
+        XLF["Financials XLF"]
+        XLI["Industrials XLI"]
     end
 
-    subgraph DEFENSE["防守型板块"]
-        XLP["必需消费 XLP"]
-        XLV["医疗 XLV"]
-        XLU["公用事业 XLU"]
+    subgraph defensive["Defensive Sectors"]
+        XLP["Cons. Staples XLP"]
+        XLV["Healthcare XLV"]
+        XLU["Utilities XLU"]
     end
 
-    ATTACK --> |"进攻型领涨"| RISK_ON["🟢 Risk-On 风险偏好"]
-    DEFENSE --> |"防守型领涨"| RISK_OFF["🔴 Risk-Off 风险规避"]
-    ATTACK --> |"轮动到周期"| ROTATION["🔄 板块轮动 经济复苏信号"]
+    cyclical --> |"cyclical leads"| RISK_ON["Risk-On"]
+    defensive --> |"defensive leads"| RISK_OFF["Risk-Off"]
+    cyclical --> |"rotation signal"| ROTATION["Sector Rotation"]
 ```
 
-判断逻辑：
+| Condition | Signal | Interpretation |
+|-----------|--------|----------------|
+| Cyclical top-3 share > 60% | Risk-On | Aggressive positioning, favor cyclicals |
+| Defensive top-3 share > 60% | Risk-Off | Reduce exposure, preserve capital |
+| Cyclical rank up + defensive down | Rotation | Economic recovery expectation |
+| Mixed | Neutral | Standard allocation |
 
-| 条件 | 信号 | 含义 |
-|------|------|------|
-| 进攻型前3占比 > 60% | 🟢 Risk-On | 积极做多，关注周期股 |
-| 防守型前3占比 > 60% | 🔴 Risk-Off | 减仓防守，保留现金 |
-| 进攻型排名↑ 且防守↓ | 🔄 轮动到周期 | 经济复苏预期 |
-| 其他 | 🟡 中性 | 正常配置 |
+## Market Regime Detection
 
-## 大盘状态判定
-
-### MA50/MA200 交叉信号
+### MA50/MA200 Crossover State Machine
 
 ```mermaid
-flowchart TD
-    SPY["SPY 价格数据"]
-    SPY --> MA50["计算 MA50<br/>50日均线"]
-    SPY --> MA200["计算 MA200<br/>200日均线"]
-    MA50 --> CHECK1{"SPY > MA50?"}
-    MA50 --> CHECK2{"MA50 > MA200?"}
-    MA200 --> CHECK2
-    MA50 --> CHECK3{"MA50 斜率 > 0?"}
-
-    CHECK1 --> |"Yes"| S1["+1"]
-    CHECK1 --> |"No"| S1b["+0"]
-    CHECK2 --> |"Yes"| S2["+1"]
-    CHECK2 --> |"No"| S2b["+0"]
-    CHECK3 --> |"Yes"| S3["+1"]
-    CHECK3 --> |"No"| S3b["+0"]
-
-    S1 --> TOTAL["总分 = S1 + S2 + S3"]
-    S2 --> TOTAL
-    S3 --> TOTAL
-
-    TOTAL --> |"3/3"| GREEN["🟢 绿灯 75-85% 仓位"]
-    TOTAL --> |"2/3"| YELLOW["🟡 黄灯 45-60% 仓位"]
-    TOTAL --> |"1/3"| YELLOW2["🟡 黄灯 30-45% 仓位"]
-    TOTAL --> |"0/3"| RED["🔴 红灯 ≤30% 仓位"]
-```
-
-### 仓位建议模型
-
-| 状态灯 | 建议仓位 | 操作策略 |
-|:------:|:--------:|---------|
-| 🟢 绿灯 | 75-85% | 逢回调加仓强势股，关注突破信号 |
-| 🟡 黄灯 | 45-60% | 不加仓，持有等待，关注支撑/阻力 |
-| 🔴 红灯 | ≤30% | 止损弱势股，保留现金等反转 |
-
-## 数据获取流程
-
-```mermaid
+%%{init: {'theme':'neutral'}}%%
 flowchart LR
-    SYM["股票代码<br/>MSFT / 0700.HK"] --> DETECT{"detect_market()<br/>市场检测"}
-    DETECT --> |".SS/.SZ"| AK_CN["akshare A股"]
-    DETECT --> |".HK"| AK_HK["akshare 港股"]
-    DETECT --> |"其他"| YF_US["yfinance 美股"]
+    SPY["SPY Price"] --> CHECK["3 Conditions Check"]
+    CHECK --> C1["SPY > MA50?"]
+    CHECK --> C2["MA50 > MA200?"]
+    CHECK --> C3["MA50 slope > 0?"]
+    C1 --> SCORE["Score 0-3"]
+    C2 --> SCORE
+    C3 --> SCORE
+    SCORE --> |"3/3"| G["Green\n75-85%"]
+    SCORE --> |"2/3"| Y["Yellow\n45-60%"]
+    SCORE --> |"0-1/3"| R["Red\n≤30%"]
+```
 
-    AK_CN --> MERGE["multi_fetcher<br/>统一数据结构"]
+| Regime | Position | Strategy |
+|:------:|:--------:|----------|
+| Green | 75–85% | Accumulate on pullbacks, favor momentum leaders |
+| Yellow | 45–60% | Hold current positions, no new additions |
+| Red | ≤30% | Cut weak positions, preserve cash |
+
+## Data Pipeline
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+    SYM["Ticker Symbol"] --> DETECT{"detect_market()"}
+    DETECT --> |".SS / .SZ"| AK_CN["akshare A-share"]
+    DETECT --> |".HK"| AK_HK["akshare HK"]
+    DETECT --> |"other"| YF_US["yfinance US"]
+
+    AK_CN --> MERGE["multi_fetcher\nUnified Schema"]
     AK_HK --> MERGE
     YF_US --> MERGE
 
-    MERGE --> CACHE["cache.py<br/>30min TTL"]
-    CACHE --> VALIDATE["data_validator<br/>8项质量检查"]
-    VALIDATE --> ANALYZE["十维度分析引擎"]
+    MERGE --> CACHE["cache.py\n30min TTL"]
+    CACHE --> VALIDATE["data_validator\n8-Point Check"]
+    VALIDATE --> ANALYZE["10-Dimension Engine"]
 ```
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 1. 安装依赖
+### Install
 
 ```bash
-pip3 install yfinance pandas numpy rich scipy akshare --break-system-packages
+pip3 install yfinance pandas numpy rich scipy akshare
 ```
 
-> 如果报错，换成：`/opt/homebrew/bin/python3.12 -m pip install yfinance pandas numpy rich scipy akshare --break-system-packages`
+### Configure Watchlist
 
-### 2. 配置你的自选股
-
-编辑 `watchlist.json`（项目根目录下，没有就运行 `python3.12 main.py --init-watchlist` 生成）：
+Create `watchlist.json` in the project root (or run `python3.12 main.py --init-watchlist`):
 
 ```json
 {
-  "_说明": "以 _ 开头的字段是注释，不会被加载",
+  "_note": "Fields starting with _ are metadata, not loaded",
   "core_index": ["SPY", "QQQ", "IWM"],
   "mag7": ["MSFT", "AAPL", "NVDA", "GOOGL", "AMZN", "META", "TSLA"],
   "hk": ["0700.HK", "9988.HK"]
 }
 ```
 
-> 也支持纯文本 `watchlist.txt`（每行一个代码，`#` 开头为注释）
+Supports ticker symbols and names in Chinese / English (auto-resolved via `ticker_alias.py`).
 
-### 3. 运行分析
+Plain text format also supported: `watchlist.txt` — one symbol per line, `#` for comments.
+
+### Run
 
 ```bash
-cd stock_monitor  # 进入项目目录
-
-# 分析 watchlist.json 中的全部股票
-python3.12 main.py
-
-# 只分析指定股票
-python3.12 main.py -s MSFT GOOGL AAPL
-
-# 每60分钟自动刷新
-python3.12 main.py -s MSFT --interval 60
-
-# 🆕 行业轮动排名（看资金流向哪个板块）
-python3.12 main.py --sector
-
-# 🆕 大盘状态灯（现在是进攻还是防守）
-python3.12 main.py --market-status
-
-# 🆕 一键全跑（大盘状态 → 行业轮动 → 个股分析）
-python3.12 main.py --all
+python3.12 main.py                         # all stocks in watchlist.json
+python3.12 main.py -s MSFT GOOGL AAPL      # specific stocks
+python3.12 main.py -s MSFT --json          # JSON output
+python3.12 main.py -s MSFT --interval 60   # refresh every 60 min
+python3.12 main.py --sector                # sector rotation ranking
+python3.12 main.py --market-status         # market regime indicator
+python3.12 main.py --all                   # full analysis pipeline
 ```
 
 ---
 
-## 📋 自选股配置详解
+## Ticker Symbol Format
 
-### 股票代码怎么查
+| Market | Format | Example |
+|--------|--------|---------|
+| US | Ticker symbol | `MSFT`, `AAPL`, `NVDA` |
+| A-share (Shanghai) | Code + `.SS` | `600519.SS` (Moutai), `601318.SS` (Ping An) |
+| A-share (Shenzhen) | Code + `.SZ` | `000858.SZ` (Wuliangye), `300750.SZ` (CATL) |
+| Hong Kong | Code + `.HK` | `0700.HK` (Tencent), `9988.HK` (Alibaba) |
 
-| 市场 | 代码格式 | 怎么查 | 示例 |
-|------|---------|--------|------|
-| **美股** | 直接写代码 | 富途/雪球搜公司英文名，代码就是 Ticker | `MSFT`（微软）、`NVDA`（英伟达） |
-| **A股上海** | 代码`.SS` | 6 开头 = 上海，加 `.SS` 后缀 | `600519.SS`（茅台）、`601318.SS`（平安） |
-| **A股深圳** | 代码`.SZ` | 0/3 开头 = 深圳，加 `.SZ` 后缀 | `000858.SZ`（五粮液）、`300750.SZ`（宁德时代） |
-| **港股** | 代码`.HK` | 加 `.HK` 后缀，不足4位补前导零 | `0700.HK`（腾讯）、`9988.HK`（阿里） |
+### Name Resolution
 
-### 常用代码速查
-
-```
-美股七巨头:
-  AAPL  苹果          MSFT  微软          GOOGL 谷歌(Alphabet)
-  AMZN  亚马逊        NVDA  英伟达        META  Meta(Facebook)
-  TSLA  特斯拉
-
-美股热门:
-  NFLX  奈飞          AMD   超微半导体    CRM   Salesforce
-  AVGO  博通          ORCL  甲骨文        JPM   摩根大通
-  BRK.B 伯克希尔B     V     Visa          COST  好市多
-
-指数/ETF:
-  SPY   标普500 ETF   QQQ   纳指100 ETF   IWM   罗素2000 ETF
-  DIA   道琼斯 ETF    ARKK  方舟创新 ETF  SOXX  半导体 ETF
-
-行业 ETF（轮动观察用）:
-  XLK   科技          XLF   金融          XLE   能源
-  XLV   医疗          XLY   消费周期      XLP   必需消费
-  XLI   工业          XLB   原材料        XLRE  房地产
-  XLU   公用事业      XLC   通信服务
-
-港股:
-  0700.HK  腾讯       9988.HK  阿里       9888.HK  百度
-  3690.HK  美团       1810.HK  小米       9618.HK  京东
-
-A股:
-  600519.SS  茅台     000858.SZ  五粮液   300750.SZ  宁德时代
-  601318.SS  平安     002594.SZ  比亚迪   600036.SS  招商银行
-```
-
-### 添加/删除股票
-
-打开 `watchlist.json`，直接编辑即可：
+The system supports mixed input of ticker codes and company names (Chinese / English):
 
 ```json
 {
-  "_说明": "自选股配置 — 改完直接跑 python3.12 main.py",
-  "my_stocks": ["MSFT", "NVDA", "TSLA"],
-  "watching": ["AAPL", "META"],
-  "hk": ["0700.HK"]
+  "my_stocks": ["MSFT", "微软", "Tencent", "0700.HK", "茅台"]
 }
 ```
 
-**规则：**
-- 分组名随意取（`my_stocks`、`watching`、`hk` 都行）
-- 以 `_` 开头的字段是注释，不加载
-- 代码不区分大小写（`msft` = `MSFT`）
-- 自动去重
-- 支持纯文本格式 `watchlist.txt`（一行一个代码，`#` 注释）
+All names are resolved to standard ticker symbols before analysis. Alias dictionary covers 216 entries across US mega-caps, HK blue chips, A-share leaders, and major ETFs.
 
-### 用命令行临时分析
+### Common Tickers Reference
 
-不想改文件？直接 `-s` 指定：
-
-```bash
-python3.12 main.py -s MSFT NVDA TSLA
 ```
+US Mega-Caps:
+  AAPL  Apple           MSFT  Microsoft       GOOGL Alphabet
+  AMZN  Amazon          NVDA  NVIDIA          META  Meta
+  TSLA  Tesla
 
-### 指定另一个配置文件
+US Notable:
+  NFLX  Netflix         AMD   AMD             CRM   Salesforce
+  AVGO  Broadcom        ORCL  Oracle          JPM   JPMorgan
+  BRK.B Berkshire       V     Visa            COST  Costco
 
-```bash
-python3.12 main.py --watchlist ~/my_other_list.json
-```
+Index / ETF:
+  SPY   S&P 500         QQQ   Nasdaq 100      IWM   Russell 2000
+  DIA   Dow Jones       ARKK  ARK Innovation  SOXX  Semiconductors
 
----
+Sector ETFs (rotation tracking):
+  XLK   Technology      XLF   Financials      XLE   Energy
+  XLV   Healthcare      XLY   Cons. Disc.     XLP   Cons. Staples
+  XLI   Industrials     XLB   Materials       XLRE  Real Estate
+  XLU   Utilities       XLC   Comm. Services
 
-## 🔄 行业轮动排名
+Hong Kong:
+  0700.HK  Tencent      9988.HK  Alibaba      9888.HK  Baidu
+  3690.HK  Meituan      1810.HK  Xiaomi       9618.HK  JD.com
 
-看资金在往哪个板块流，判断当前该买什么行业。
-
-```bash
-python3.12 main.py --sector
-```
-
-输出内容：
-- 11 个行业 ETF 按 5日/20日/60日 涨幅排名
-- 资金流向判断：风险偏好 / 风险规避 / 板块轮动 / 中性
-- 领涨 vs 领跌板块
-- 操作建议
-
-**怎么看：**
-- 领涨板块 = 资金正在流入，可以关注该板块内的强势个股
-- 领跌板块 = 资金正在流出，回避
-- 如果科技(XLK)领涨 + 必需消费(XLP)领跌 = 进攻信号
-- 如果公用事业(XLU)领涨 + 科技(XLK)领跌 = 防守信号
-
----
-
-## 🚦 大盘状态灯
-
-告诉你现在该进攻还是防守。
-
-```bash
-python3.12 main.py --market-status
-```
-
-| 灯 | 含义 | 建议仓位 | 操作 |
-|----|------|---------|------|
-| 🟢 绿灯 | SPY > MA50 > MA200，趋势向上 | 75-85% | 积极做多，逢回调加仓 |
-| 🟡 黄灯 | 均线纠缠或部分条件不满足 | 45-60% | 正常配置，不加仓 |
-| 🔴 红灯 | SPY < MA50 < MA200，趋势向下 | 30% | 减仓防守，保留现金 |
-
-输出内容：
-- SPY/QQQ 详细数据（价格、均线、斜率、波动率、回撤）
-- MA50/MA200 金叉/死叉状态
-- 建议仓位百分比
-- 操作清单
-
----
-
-## 命令速查
-
-```bash
-# === 个股分析 ===
-python3.12 main.py                         # 分析 watchlist.json 全部
-python3.12 main.py -s MSFT                 # 单只股票
-python3.12 main.py -s MSFT NVDA GOOGL      # 多只股票
-python3.12 main.py -s MSFT --json          # JSON 输出
-python3.12 main.py -s MSFT --interval 60   # 每60分钟刷新
-python3.12 main.py --local -s MSFT         # 离线测试（不联网）
-
-# === 🆕 宏观分析 ===
-python3.12 main.py --sector                # 行业轮动排名
-python3.12 main.py --market-status         # 大盘状态灯
-python3.12 main.py --all                   # 全部跑一遍
-
-# === 🆕 配置管理 ===
-python3.12 main.py --init-watchlist        # 生成示例 watchlist.json
-python3.12 main.py --watchlist mylist.json # 指定配置文件
+A-Share:
+  600519.SS  Moutai     000858.SZ  Wuliangye  300750.SZ  CATL
+  601318.SS  Ping An    002594.SZ  BYD        600036.SS  CMB
 ```
 
 ---
 
-## 报告解读
+## Report Structure
 
-### 数据交叉验证卡（每份报告最顶部）
+### Data Validation Card
 
-跑完报告后，打开富途牛牛，对比这 5 个字段：
+Displayed at the top of every report. Cross-verify these 5 fields against your broker:
 
-| 字段 | 系统值 | 富途值 |
-|------|--------|--------|
-| 数据日期 | 2026-08-03 | 看日K最后一天 |
-| 收盘价 | $373.51 | 看日K收盘价 |
-| 实时价 | $373.51 | 看实时报价 |
-| 货币 | USD | 确认币种 |
-| 市场状态 | PRE/POST/REGULAR | 盘前/盘后/交易中 |
+| Field | Description |
+|-------|-------------|
+| Data Date | Last trading day of fetched data |
+| Close Price | Settlement price from data source |
+| Live Price | Real-time quote (may differ during pre/post market) |
+| Currency | USD / HKD / CNY |
+| Market State | PRE / POST / REGULAR |
 
-**5 项都吻合 = 数据正确。不吻合 = 看红色告警。**
-
-### 综合判断
+### Composite Score
 
 ```
-██████████████████░░  ← 可视化评分条
-评分: 92/100          ← 0-100，越高越好
-建议: 🟢 强烈买入     ← 5 档: 强烈买入/偏多/中性/偏空/强烈卖出
-趋势: 震荡偏多         ← 三重确认: 价格vs均线 + 均线斜率 + MACD
+██████████████████░░   Visual score bar
+Score: 92/100          0-100, higher = more bullish
+Signal: Strong Buy     5 levels: Strong Buy / Bullish / Neutral / Bearish / Strong Sell
+Trend:  Bullish        Triple confirmation: price vs MA + MA slope + MACD
 ```
 
-### 关键价位（最重要）
+### Key Levels
 
 ```
-现价: $373.51
-阻力1: $376.00 (前高，+0.7%)    ← 突破这个才能涨
-阻力2: $386.31 (Fib，+3.4%)
-支撑1: $372.66 (Fib，-0.2%)     ← 跌破这个要警惕
-支撑2: $361.63 (Fib，-3.2%)
-支撑3: $355.00 (期权最大痛点，-5.0%)
+Current:  $373.51
+R1:       $376.00 (previous high, +0.7%)
+R2:       $386.31 (Fibonacci, +3.4%)
+S1:       $372.66 (Fibonacci, -0.2%)
+S2:       $361.63 (Fibonacci, -3.2%)
+S3:       $355.00 (options max pain, -5.0%)
 
-📈 上涨场景: 突破$376 → 目标$386 → $400
-📉 下跌场景: 跌破$373 → 支撑$362 → 再跌到$355
-🎲 风险收益比: 1.1:1 (一般，谨慎操作)
+Upside:   break $376 → target $386 → $400
+Downside: break $373 → support $362 → $355
+R/R:      1.1:1
 ```
-
-### 十维度覆盖
-
-| 维度 | 数据来源 | 内容 |
-|------|---------|------|
-| 📈 技术指标 | 计算得出 | RSI/MACD/KDJ/布林/均线/量比/K线形态 |
-| 🏢 基本面 | yfinance | PE/PEG/营收增速/利润率/ROE/分析师评级 |
-| 📐 历史估值 | yfinance | 5年价格分位/PE区间/偏离MA200 |
-| 📰 新闻情绪 | yfinance+Google RSS | 关键词分析，判断市场情绪方向 |
-| 📊 期权资金 | yfinance | P/C比/异常大单/最大痛点 |
-| 🌍 市场背景 | yfinance | SPY/QQQ/行业ETF对比，相对强弱 |
-| 🔄 行业轮动 | yfinance | 11个行业ETF排名+资金流向判断 |
-| 🚦 大盘状态 | yfinance | SPY/QQQ均线交叉+仓位建议 |
-
-### 底部核验清单
-
-每份报告底部有 5 步核验清单，确保数据可信后再看分析结论。
 
 ---
 
-## 数据源
-
-| 市场 | 数据源 | 需要注册？ |
-|------|--------|:---:|
-| 美股 | yfinance (Yahoo Finance) | ❌ |
-| A股 | akshare (新浪/东方财富) | ❌ |
-| 港股 | akshare (新浪/腾讯) | ❌ |
-
----
-
-## 推荐工作流
-
-每天开盘前/收盘后跑一次：
+## Recommended Workflow
 
 ```bash
-# 1. 看大盘环境 — 现在是绿灯还是红灯？
+# 1. Check market regime — green, yellow, or red?
 python3.12 main.py --market-status
 
-# 2. 看行业轮动 — 资金在流向哪个板块？
+# 2. Check sector rotation — where is capital flowing?
 python3.12 main.py --sector
 
-# 3. 分析你的持仓 — watchlist.json 里的股票全部跑一遍
+# 3. Analyze your watchlist
 python3.12 main.py
-```
 
-或者偷懒一条命令搞定：
-
-```bash
+# Or run the full pipeline in one command:
 python3.12 main.py --all
 ```
 
----
+## Data Sources
 
-## 常见问题
-
-### Q: 报错 "Too Many Requests. Rate limited"
-
-Yahoo 暂时封了你的 IP（短时间请求太多）。等 15 分钟再跑，或者用 `--local` 模式先测试逻辑：
-
-```bash
-python3.12 main.py --local -s MSFT
-```
-
-### Q: 数据跟富途对不上
-
-看报告顶部的「数据交叉验证卡」和底部「核验清单」。可能原因：
-- 数据未结算（Yahoo 延迟），系统会自动用实时价回填
-- 盘后/盘前时段，显示的是实时价而非收盘价
-- Yahoo 数据源与富途有微小偏差（正常）
-
-### Q: A股/港股怎么加
-
-| 市场 | 格式 | 示例 |
-|------|------|------|
-| A股上海 | 代码`.SS` | `600519.SS`（茅台）、`601318.SS`（平安） |
-| A股深圳 | 代码`.SZ` | `000858.SZ`（五粮液）、`300750.SZ`（宁德时代） |
-| 港股 | 代码`.HK` | `0700.HK`（腾讯）、`9988.HK`（阿里） |
-
-### Q: 不知道某只股票的代码怎么办
-
-1. **富途/雪球** — 搜索公司名，详情页显示 Ticker/代码
-2. **Google** — 搜 `"公司名 stock ticker"`，如 `"英伟达 stock ticker"` → NVDA
-3. **Yahoo Finance** — [finance.yahoo.com](https://finance.yahoo.com) 搜索
-4. **直接试** — 美股一般就是公司缩写（Apple=AAPL, Microsoft=MSFT, NVIDIA=NVDA）
-
-### Q: 技术指标参数怎么调
-
-编辑 `config.py` 中的参数，比如把 RSI 周期从 14 改成 9：
-
-```python
-RSI_PERIOD = 9
-```
-
-### Q: watchlist.json 和 config.py 的 SYMBOLS 什么关系
-
-优先级：`watchlist.json` > `watchlist.txt` > `config.py SYMBOLS`
-
-- 有 `watchlist.json` 就用它（推荐）
-- 没有就找 `watchlist.txt`
-- 都没有才用 `config.py` 里的 `SYMBOLS` 列表
-- `config.py` 里的指标参数（均线周期、RSI 等）仍然生效
+| Market | Source | API Key Required |
+|--------|--------|:----------------:|
+| US | yfinance (Yahoo Finance) | No |
+| A-share | akshare (Sina / East Money) | No |
+| Hong Kong | akshare (Sina / Tencent) | No |
 
 ---
 
-## 免责声明
-
-本系统仅供学习研究使用，**不构成任何投资建议**。
-
-- 数据来自第三方免费 API，不保证 100% 准确
-- 技术分析基于历史数据，不预测未来
-- 投资有风险，入市需谨慎
-
----
-
-## 文件结构
+## Project Structure
 
 ```
 stock_monitor/
-├── main.py              ← 入口（命令行解析 + 流程编排）
-├── watchlist.json       ← ⭐ 自选股配置（改这里加减股票，不上传 git）
-├── watchlist.example.json ← 📝 watchlist 示例模板
-├── watchlist_loader.py  ← 自选股加载器（JSON/TXT + 名称解析）
-├── ticker_alias.py      ← 🆕 名称→代码别名解析（216 条）
-├── sector_rotation.py   ← 🆕 行业轮动排名（11个ETF + 资金流向）
-├── market_status.py     ← 🆕 大盘状态灯（均线交叉 + 仓位建议）
-├── config.py            ← 指标参数（均线/RSI/MACD/KDJ/评分权重）
-├── indicators.py        ← MA/BOLL/RSI/MACD/KDJ 计算
-├── signals.py           ← 信号检测（金叉死叉/背离）
-├── patterns.py          ← K线形态识别
-├── analyzer.py          ← 综合评分引擎（十维度加权）
-├── report.py            ← Rich 终端报告渲染
-├── levels.py            ← 支撑/阻力/Fibonacci/场景推演
-├── fundamentals.py      ← 美股基本面（PE/PEG/ROE）
-├── fundamentals_cn.py   ← A股/港股基本面
-├── sentiment.py         ← 新闻情绪分析
-├── options_flow.py      ← 期权资金流（P/C比/异常大单）
-├── market_context.py    ← 大盘/行业对标（相对强弱）
-├── valuation_history.py ← 历史估值分位（5年价格分位）
-├── data_validator.py    ← 数据健康检查（8项验证）
-├── multi_fetcher.py     ← 多数据源获取（yfinance+akshare）
-├── cache.py             ← 本地缓存（30min TTL）
-├── local_data.py        ← 离线测试数据
-├── alert_config.py      ← 告警规则配置
-├── alert_monitor.py     ← Telegram 告警推送
-├── LICENSE              ← MIT License
-└── README.md            ← 本文件
+├── main.py                # Entry point, CLI argument parsing
+├── config.py              # Indicator parameters, scoring weights
+├── watchlist.json         # Watchlist configuration (gitignored)
+├── watchlist.example.json # Watchlist template
+├── watchlist_loader.py    # Watchlist loader (JSON/TXT + alias resolution)
+├── ticker_alias.py        # Name-to-ticker resolution (216 aliases)
+├── sector_rotation.py     # Sector rotation: 11 SPDR ETFs + capital flow
+├── market_status.py       # Market regime: MA50/MA200 crossover detection
+├── analyzer.py            # Composite scoring engine (10 dimensions)
+├── indicators.py          # MA / BOLL / RSI / MACD / KDJ computation
+├── signals.py             # Signal detection (cross / divergence)
+├── patterns.py            # Candlestick pattern recognition
+├── report.py              # Rich terminal report rendering
+├── levels.py              # Support / resistance / Fibonacci / scenarios
+├── fundamentals.py        # US equity fundamentals (PE/PEG/ROE)
+├── fundamentals_cn.py     # A-share / HK fundamentals
+├── sentiment.py           # News sentiment analysis
+├── options_flow.py        # Options flow (P/C ratio, unusual activity)
+├── market_context.py      # Benchmark comparison, relative strength
+├── valuation_history.py   # Historical valuation percentile
+├── data_validator.py      # Data quality checks (8-point)
+├── multi_fetcher.py       # Multi-source data dispatcher
+├── data_fetcher.py        # Raw data fetching with retry logic
+├── cache.py               # Local file cache (30min TTL)
+├── local_data.py          # Offline test data
+├── alert_config.py        # Alert rule configuration
+├── alert_monitor.py       # Telegram alert push
+├── LICENSE                # MIT License
+└── README.md              # This file
 ```
+
+## Troubleshooting
+
+**"Too Many Requests"** — Yahoo Finance rate limit. Wait 15 minutes and retry, or use `--local` for offline testing.
+
+**Data mismatch with broker** — Check the Data Validation Card at report top. Common causes: unsettled data (Yahoo delay), pre/post market live price backfill, minor source variance.
+
+**Custom indicator parameters** — Edit `config.py` directly (e.g., `RSI_PERIOD = 9`).
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
+
+## Disclaimer
+
+This system is for educational and research purposes only. It does not constitute investment advice. Data is sourced from third-party free APIs and may not be 100% accurate. Past performance does not guarantee future results. Invest at your own risk.

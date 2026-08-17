@@ -4,28 +4,28 @@
 ===========================
 
 维度覆盖：
-  1. 技术面 — MA/BOLL/RSI/MACD/KDJ/量价/K线形态
-  2. 基本面 — 估值/增长/盈利/分析师评级
-  3. 新闻情绪 — 财经新闻关键词分析（yfinance + Google News fallback）
-  4. 期权资金 — P/C比率/异常大单/最大痛点（自动过滤无效数据）
-  5. 市场背景 — 大盘/行业对标（根据GICS自动选ETF）
-  6. 关键价位 — 支撑位/阻力位/斐波那契/场景推演
-  7. 历史估值 — PE分位/价格分位/PE Band
-  8. 数据验证 — 全链路质量检查 + 肉眼交叉验证日志
-  9. 🆕 行业轮动 — 11个行业ETF多周期排名 + 资金流向判断
- 10. 🆕 大盘状态灯 — SPY/QQQ 均线交叉 + 仓位建议
- 11. 🆕 自选股配置 — 从 watchlist.json 文件加载股票列表
+  1.  技术指标 — MA / BOLL / RSI / MACD / KDJ / 量价 / K线形态
+  2.  基本面   — 估值 / 增长 / 盈利 / 分析师评级
+  3.  新闻情绪 — 财经新闻关键词分析
+  4.  期权资金 — P/C 比率 / 异常大单 / 最大痛点
+  5.  市场背景 — 大盘 / 行业对标（GICS 自动匹配 ETF）
+  6.  关键价位 — 支撑 / 阻力 / Fibonacci / 场景推演
+  7.  历史估值 — PE 分位 / 价格分位 / PE Band
+  8.  数据验证 — 全链路质量检查 + 交叉验证
+  9.  行业轮动 — 11 个 SPDR 行业 ETF 多周期动量排名 + 资金流向判定
+  10. 大盘状态 — SPY/QQQ MA50/MA200 交叉信号 + 仓位建议
+  11. 自选股配置 — JSON/TXT 外部文件 + 中英文名称自动解析
 
-用法:
-    python3.12 main.py                         # 分析 watchlist.json 中全部股票
-    python3.12 main.py -s MSFT                 # 单只股票
-    python3.12 main.py -s ADBE MSFT CRM        # 多只股票
-    python3.12 main.py -s MSFT --json          # JSON 输出
-    python3.12 main.py -s MSFT --interval 60   # 每60分钟刷新
-    python3.12 main.py --sector                # 🆕 行业轮动排名
-    python3.12 main.py --market-status         # 🆕 大盘状态灯
-    python3.12 main.py --watchlist mylist.json # 🆕 指定自选股文件
-    python3.12 main.py --init-watchlist        # 🆕 生成示例 watchlist.json
+Usage:
+    python3.12 main.py                         # analyze all stocks in watchlist.json
+    python3.12 main.py -s MSFT                 # single stock
+    python3.12 main.py -s ADBE MSFT CRM        # multiple stocks
+    python3.12 main.py -s MSFT --json          # JSON output
+    python3.12 main.py -s MSFT --interval 60   # refresh every 60 min
+    python3.12 main.py --sector                # sector rotation ranking
+    python3.12 main.py --market-status         # market regime indicator
+    python3.12 main.py --watchlist mylist.json # custom watchlist file
+    python3.12 main.py --init-watchlist        # generate example watchlist.json
 """
 
 import argparse
@@ -333,23 +333,23 @@ def main():
     parser.add_argument("--no-options", action="store_true", help="跳过期权分析")
     parser.add_argument("--local", action="store_true", help="使用本地测试数据（不联网）")
 
-    # === 🆕 自选股配置 ===
+    # Watchlist configuration
     parser.add_argument("--watchlist", type=str, default=None,
                         help="指定自选股配置文件路径（.json 或 .txt）")
     parser.add_argument("--init-watchlist", action="store_true",
                         help="生成示例 watchlist.json 文件")
 
-    # === 🆕 行业轮动 ===
+    # Sector rotation analysis
     parser.add_argument("--sector", action="store_true",
                         help="运行行业轮动排名分析")
 
-    # === 🆕 大盘状态灯 ===
+    # Market regime indicator
     parser.add_argument("--market-status", action="store_true",
                         help="运行大盘状态灯分析")
 
-    # === 🆕 全部跑一遍 ===
+    # Full analysis: market + sector + individual stocks
     parser.add_argument("--all", action="store_true",
-                        help="全部跑一遍：大盘状态 + 行业轮动 + 个股分析")
+                        help="全部运行：大盘状态 + 行业轮动 + 个股分析")
 
     args = parser.parse_args()
 
@@ -371,7 +371,7 @@ def main():
         symbols = load_watchlist()  # 自动搜索 watchlist.json → .txt → config.SYMBOLS
         watchlist_file = None
 
-    # === 🆕 别名解析（-s 参数也需要，load_watchlist 内部已处理）===
+    # Ticker alias resolution for -s arguments
     if args.symbols:
         from ticker_alias import resolve_symbols
         verbose_pre = not args.json

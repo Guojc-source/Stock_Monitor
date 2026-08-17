@@ -1,26 +1,11 @@
 """
-自选股配置加载器
+Watchlist Loader
 ================
-从外部文件加载股票列表，支持两种格式 + 名称自动解析：
+Load stock symbols from external configuration files.
+Supports JSON (grouped) and plain text formats, with automatic
+name-to-ticker resolution via ticker_alias module.
 
-1. watchlist.json（推荐）— 结构化配置，支持分组和备注
-   {
-     "core_index": ["SPY", "QQQ"],
-     "satellite": ["微软", "NVDA", "谷歌"],    ← 支持中英文名称！
-     "hk": ["腾讯", "阿里"]
-   }
-
-2. watchlist.txt — 纯文本，每行一个代码或名称，# 开头为注释
-   # 核心指数
-   SPY
-   QQQ
-   # 科技巨头（代码或名称都行）
-   微软
-   英伟达
-
-名称自动解析: "微软" → MSFT, "腾讯" → 0700.HK, "茅台" → 600519.SS
-
-优先级：watchlist.json > watchlist.txt > config.py SYMBOLS
+Priority: watchlist.json > watchlist.txt > config.py SYMBOLS
 """
 
 import json

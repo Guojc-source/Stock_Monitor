@@ -1,15 +1,16 @@
 """
-大盘状态灯模块
-==============
-基于 SPY/QQQ 的均线交叉、趋势方向、波动率，
-输出一个直观的「交通灯」状态 + 仓位建议。
+Market Regime Detection
+=======================
+Determine market regime based on SPY/QQQ moving average crossovers,
+trend direction, and volatility. Outputs a traffic-light signal
+with position sizing recommendations.
 
-核心逻辑:
-  - 🟢 绿灯（牛市）: SPY > MA50 > MA200，MA50 向上 → 满仓进攻
-  - 🟡 黄灯（警戒）: SPY > MA200 但 < MA50，或均线纠缠 → 正常仓位
-  - 🔴 红灯（熊市）: SPY < MA50 < MA200，MA50 向下 → 防守为主
+Regime Logic:
+  - Green  (Bull):     SPY > MA50 > MA200, MA50 upward   → 75-85% position
+  - Yellow (Caution):  SPY > MA200 but < MA50, or mixed  → 45-60% position
+  - Red    (Bear):     SPY < MA50 < MA200, MA50 downward → ≤30% position
 
-用法:
+Usage:
     from market_status import get_market_status
     status = get_market_status()
     # status["light"] → "green" | "yellow" | "red"

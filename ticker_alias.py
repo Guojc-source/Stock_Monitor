@@ -1,14 +1,14 @@
 """
-股票代码别名解析器
-==================
-将公司名称（中文/英文）解析为标准股票代码。
+Ticker Alias Resolution
+========================
+Resolve company names (Chinese / English) to standard ticker symbols.
 
-支持:
-  - 美股: "微软" / "Microsoft" → MSFT
-  - 港股: "腾讯" → 0700.HK
-  - A股:  "茅台" / "贵州茅台" → 600519.SS
+Coverage:
+  - US:    "微软" / "Microsoft" → MSFT
+  - HK:    "腾讯" → 0700.HK
+  - A-share: "茅台" / "贵州茅台" → 600519.SS
 
-用法:
+Usage:
     from ticker_alias import resolve_name, is_ticker
     resolve_name("微软")      # → "MSFT"
     resolve_name("腾讯")      # → "0700.HK"

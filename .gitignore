@@ -30,6 +30,7 @@ watchlist.txt    # ⚠️ 同上
 
 # Claude Code 配置（本地配置不上传）
 .claude/
+CLAUDE.md
 
 # macOS
 .DS_Store
