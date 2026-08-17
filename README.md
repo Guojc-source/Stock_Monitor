@@ -9,40 +9,15 @@ No API keys. No database. Python 3.12 + yfinance + akshare.
 ## Architecture
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 flowchart LR
-    subgraph input["Input"]
-        direction TB
-        A1["watchlist.json\nor CLI -s MSFT"]
-        A2["ticker_alias.py\n216 name → code mappings"]
-        A1 --> A2
-    end
-
-    subgraph data["Data Sources"]
-        direction TB
-        B1["yfinance — US / HK"]
-        B2["akshare — A-share / HK"]
-        B3["cache.py — 30min TTL"]
-        B1 --> B3
-        B2 --> B3
-    end
-
-    subgraph engine["10-Dimension Engine"]
-        direction TB
-        C1["Technical: MA BOLL RSI MACD KDJ"]
-        C2["Fundamental: PE PEG ROE Growth"]
-        C3["Options Flow / Sentiment / Valuation"]
-        C4["Market Context / Sector Rotation / Regime"]
-    end
-
-    subgraph output["Output"]
-        direction TB
-        D1["Composite Score 0-100"]
-        D2["Rich Terminal Report"]
-        D1 --> D2
-    end
-
-    input --> data --> engine --> output
+    A1["watchlist.json\nor CLI args"] --> A2["ticker_alias.py\n216 name-code mappings"]
+    A2 --> B1["yfinance\nUS / HK"]
+    A2 --> B2["akshare\nA-share / HK"]
+    B1 --> B3["cache.py\n30min TTL"]
+    B2 --> B3
+    B3 --> C["10-Dimension Analysis Engine\nTechnical | Fundamental | Options\nSentiment | Market Context | Regime"]
+    C --> D1["Composite Score\n0-100"]
+    D1 --> D2["Rich Terminal Report\nJSON | Telegram Alert"]
 ```
 
 ## Scoring Model
@@ -107,24 +82,10 @@ $R_n$ = rank-normalized n-day return across 11 SPDR sector ETFs (0–100).
 ### Capital Flow Detection
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 flowchart LR
-    subgraph cyclical["Cyclical Sectors"]
-        XLK["Technology XLK"]
-        XLY["Cons. Discretionary XLY"]
-        XLF["Financials XLF"]
-        XLI["Industrials XLI"]
-    end
-
-    subgraph defensive["Defensive Sectors"]
-        XLP["Cons. Staples XLP"]
-        XLV["Healthcare XLV"]
-        XLU["Utilities XLU"]
-    end
-
-    cyclical --> |"cyclical leads"| RISK_ON["Risk-On"]
-    defensive --> |"defensive leads"| RISK_OFF["Risk-Off"]
-    cyclical --> |"rotation signal"| ROTATION["Sector Rotation"]
+    CYC["Cyclical: XLK XLY XLF XLI"] --> |"cyclical leads"| ON["Risk-On"]
+    DEF["Defensive: XLP XLV XLU"] --> |"defensive leads"| OFF["Risk-Off"]
+    CYC --> |"rotation"| ROT["Sector Rotation"]
 ```
 
 | Condition | Signal | Interpretation |
@@ -139,18 +100,16 @@ flowchart LR
 ### MA50/MA200 Crossover State Machine
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 flowchart LR
-    SPY["SPY Price"] --> CHECK["3 Conditions Check"]
-    CHECK --> C1["SPY > MA50?"]
-    CHECK --> C2["MA50 > MA200?"]
-    CHECK --> C3["MA50 slope > 0?"]
-    C1 --> SCORE["Score 0-3"]
-    C2 --> SCORE
-    C3 --> SCORE
-    SCORE --> |"3/3"| G["Green\n75-85%"]
-    SCORE --> |"2/3"| Y["Yellow\n45-60%"]
-    SCORE --> |"0-1/3"| R["Red\n≤30%"]
+    SPY["SPY Price"] --> C1{"SPY > MA50"}
+    SPY --> C2{"MA50 > MA200"}
+    SPY --> C3{"MA50 slope > 0"}
+    C1 --> S["Score 0-3"]
+    C2 --> S
+    C3 --> S
+    S --> |"3/3"| G["Green 75-85%"]
+    S --> |"2/3"| Y["Yellow 45-60%"]
+    S --> |"0-1"| R["Red ≤30%"]
 ```
 
 | Regime | Position | Strategy |
@@ -162,7 +121,6 @@ flowchart LR
 ## Data Pipeline
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 flowchart LR
     SYM["Ticker Symbol"] --> DETECT{"detect_market()"}
     DETECT --> |".SS / .SZ"| AK_CN["akshare A-share"]
