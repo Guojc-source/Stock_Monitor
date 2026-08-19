@@ -6,12 +6,15 @@
 
 **English** | [简体中文](README_zh.md)
 
-<!-- 公开前建议：运行 `python3 main.py --all`，把终端报告截图存到 docs/report.png，
-     在这里加一个 "Screenshots" 小节 —— 一张真实报告截图是最有效的吸星手段。 -->
-
 Quantitative analysis engine for **US / A-share / HK equity markets**. Integrates 10 analytical dimensions including technical indicators, fundamental valuation, options flow, news sentiment, sector rotation, and market regime detection. Outputs structured scoring reports with support/resistance levels, signal conflict analysis, and position sizing recommendations.
 
 **No API keys. No database. Zero config** — Python 3.10+ with yfinance + akshare.
+
+## 📸 Screenshots
+
+![Stock Monitor — 10-dimension terminal report with signal conflict analysis and portfolio summary](docs/report.png)
+
+*One run: per-stock 10-dimension reports (data validation card, signal conflict warnings, risk alerts, manual checklist) plus a cross-market portfolio summary table.*
 
 ## Highlights
 
