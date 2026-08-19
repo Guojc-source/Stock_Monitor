@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Stars](https://img.shields.io/github/stars/Guojc-source/stock_monitor?style=social)](https://github.com/Guojc-source/stock_monitor)
+[![Stars](https://img.shields.io/github/stars/Guojc-source/Stock_Monitor?style=social)](https://github.com/Guojc-source/Stock_Monitor)
 
 [English](README.md) | **简体中文**
 
@@ -376,6 +376,6 @@ MIT License,详见 [LICENSE](LICENSE)。
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Guojc-source/stock_monitor&type=Date)](https://star-history.com/#Guojc-source/stock_monitor&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Guojc-source/Stock_Monitor&type=Date)](https://star-history.com/#Guojc-source/Stock_Monitor&Date)
 
 如果 Stock Monitor 对你的分析有帮助,欢迎点个 ⭐,让更多人发现这个项目。

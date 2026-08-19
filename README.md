@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Stars](https://img.shields.io/github/stars/Guojc-source/stock_monitor?style=social)](https://github.com/Guojc-source/stock_monitor)
+[![Stars](https://img.shields.io/github/stars/Guojc-source/Stock_Monitor?style=social)](https://github.com/Guojc-source/Stock_Monitor)
 
 **English** | [简体中文](README_zh.md)
 
@@ -372,6 +372,6 @@ This system is for educational and research purposes only. It does not constitut
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Guojc-source/stock_monitor&type=Date)](https://star-history.com/#Guojc-source/stock_monitor&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Guojc-source/Stock_Monitor&type=Date)](https://star-history.com/#Guojc-source/Stock_Monitor&Date)
 
 If Stock Monitor helps your analysis, consider giving it a ⭐ — it helps more people find this project.
