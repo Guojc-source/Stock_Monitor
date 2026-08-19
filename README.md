@@ -1,8 +1,26 @@
-# Stock Monitor — Multi-Dimension Technical Analysis System
+# 📈 Stock Monitor — Multi-Dimension Technical Analysis System
 
-Quantitative analysis engine for US / A-share / HK equity markets. Integrates 10 analytical dimensions including technical indicators, fundamental valuation, options flow, news sentiment, sector rotation, and market regime detection. Outputs structured scoring reports with support/resistance levels, signal conflict analysis, and position sizing recommendations.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Stars](https://img.shields.io/github/stars/Guojc-source/stock_monitor?style=social)](https://github.com/Guojc-source/stock_monitor)
 
-No API keys. No database. Python 3.12 + yfinance + akshare.
+**English** | [简体中文](README_zh.md)
+
+<!-- 公开前建议：运行 `python3 main.py --all`，把终端报告截图存到 docs/report.png，
+     在这里加一个 "Screenshots" 小节 —— 一张真实报告截图是最有效的吸星手段。 -->
+
+Quantitative analysis engine for **US / A-share / HK equity markets**. Integrates 10 analytical dimensions including technical indicators, fundamental valuation, options flow, news sentiment, sector rotation, and market regime detection. Outputs structured scoring reports with support/resistance levels, signal conflict analysis, and position sizing recommendations.
+
+**No API keys. No database. Zero config** — Python 3.10+ with yfinance + akshare.
+
+## Highlights
+
+- 🌏 **Three markets in one engine** — US stocks via yfinance, A-shares & HK stocks via akshare, market auto-detected from ticker format
+- 🔟 **10-dimension composite scoring** — technicals, fundamentals, historical valuation percentile, news sentiment, options flow, market context, sector rotation, market regime, data quality
+- 🚦 **Market regime traffic light** — SPY/QQQ MA50/MA200 state machine → green / yellow / red position guidance
+- 🔄 **Sector rotation radar** — multi-period momentum ranking across 11 SPDR sector ETFs + risk-on / risk-off capital flow detection
+- 🀄 **Type stock names in plain Chinese or English** — `"茅台"`, `"Tencent"`, `"Microsoft"` all resolve to tickers (216 built-in aliases)
+- 📊 **Rich terminal reports** — data validation card, key support/resistance levels, signal conflict warnings; JSON output for scripting
 
 ---
 
@@ -17,7 +35,7 @@ flowchart LR
     B2 --> B3
     B3 --> C["10-Dimension Analysis Engine\nTechnical | Fundamental | Options\nSentiment | Market Context | Regime"]
     C --> D1["Composite Score\n0-100"]
-    D1 --> D2["Rich Terminal Report\nJSON | Telegram Alert"]
+    D1 --> D2["Rich Terminal Report\nJSON Export | Alert Rules"]
 ```
 
 ## Scoring Model
@@ -148,7 +166,7 @@ pip3 install yfinance pandas numpy rich scipy akshare
 
 ### Configure Watchlist
 
-Create `watchlist.json` in the project root (or run `python3.12 main.py --init-watchlist`):
+Create `watchlist.json` in the project root (or run `python3 main.py --init-watchlist`):
 
 ```json
 {
@@ -166,13 +184,13 @@ Plain text format also supported: `watchlist.txt` — one symbol per line, `#` f
 ### Run
 
 ```bash
-python3.12 main.py                         # all stocks in watchlist.json
-python3.12 main.py -s MSFT GOOGL AAPL      # specific stocks
-python3.12 main.py -s MSFT --json          # JSON output
-python3.12 main.py -s MSFT --interval 60   # refresh every 60 min
-python3.12 main.py --sector                # sector rotation ranking
-python3.12 main.py --market-status         # market regime indicator
-python3.12 main.py --all                   # full analysis pipeline
+python3 main.py                         # all stocks in watchlist.json
+python3 main.py -s MSFT GOOGL AAPL      # specific stocks
+python3 main.py -s MSFT --json          # JSON output
+python3 main.py -s MSFT --interval 60   # refresh every 60 min
+python3 main.py --sector                # sector rotation ranking
+python3 main.py --market-status         # market regime indicator
+python3 main.py --all                   # full analysis pipeline
 ```
 
 ---
@@ -276,16 +294,16 @@ R/R:      1.1:1
 
 ```bash
 # 1. Check market regime — green, yellow, or red?
-python3.12 main.py --market-status
+python3 main.py --market-status
 
 # 2. Check sector rotation — where is capital flowing?
-python3.12 main.py --sector
+python3 main.py --sector
 
 # 3. Analyze your watchlist
-python3.12 main.py
+python3 main.py
 
 # Or run the full pipeline in one command:
-python3.12 main.py --all
+python3 main.py --all
 ```
 
 ## Data Sources
@@ -328,7 +346,6 @@ stock_monitor/
 ├── cache.py               # Local file cache (30min TTL)
 ├── local_data.py          # Offline test data
 ├── alert_config.py        # Alert rule configuration
-├── alert_monitor.py       # Telegram alert push
 ├── LICENSE                # MIT License
 └── README.md              # This file
 ```
@@ -350,3 +367,11 @@ MIT License. See [LICENSE](LICENSE).
 ## Disclaimer
 
 This system is for educational and research purposes only. It does not constitute investment advice. Data is sourced from third-party free APIs and may not be 100% accurate. Past performance does not guarantee future results. Invest at your own risk.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Guojc-source/stock_monitor&type=Date)](https://star-history.com/#Guojc-source/stock_monitor&Date)
+
+If Stock Monitor helps your analysis, consider giving it a ⭐ — it helps more people find this project.
